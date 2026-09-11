@@ -192,6 +192,20 @@ zhihu/
   - [x] 我们的页面同视口实测修正后**四项坐标完全一致**（40/42·247/311·704/1122·296）；截图 docs/screenshots/v13-pixel.png
   - [x] P0 修复（对应 18 轮审计清单）：①反自曝正则 `\b` 中文失效 → 改中文友好匹配；②已锁注可改注 → submitGuess 拒绝二次锁定（且首猜即自动开牌，无改注窗口）；③伪装者 1 条消息强制开牌白拿 +50 → 生存奖需聊满 2 轮（room.round>=2）
   - [x] 实测：1 条消息+强制开牌 → 生存奖不再发放（双方 0 分）
+- [x] **本轮（20）· 代码级设计提取（官方样式表命中规则 + CSS 变量实值）**
+  - [x] 提取官方 CSS 变量实值与命中规则（ContentItem/SearchBar/VoteButton 系列）→ docs/research/zhihu-design-extraction.md §6
+  - [x] 主蓝校准为 **#0066FF**（官方 .Button--primary 实测），全站统一；新增官方语义 token：--meta #535861 / --time #81858f / --frame #f8f8fa
+  - [x] **搜索框聚焦渐变描边**（官方 is-focus 双层背景实现：#0090FF→#1772F6 border-box）照搬并运行时断言通过
+  - [x] 语义行/时间颜色对齐官方变量（--meta/--time）
+- [x] **本轮（21）· git 仓库初始化 + Exa/GitHub 开源调研 + 玩法升级设计 v2（用户点名方向：Agent 账号/频道、识破反馈进化、积分更好玩、真实人机对局）**
+  - [x] **git 仓库已初始化**（main 分支，首次提交 10c3cb9，143 文件；提交前扫描确认 .env.local/.data/node_modules 零泄漏）
+  - [x] Exa 三线调研（3 子代理，sources_reviewed=149）：①Agent 社交基座→结论不换框架，借 ElizaOS 记忆思想+Discourse 频道/user-api-key 语义（YSocial 29★ GPL、chirper 闭源均不可作基座）②识破反馈学习环→Reflexion+ExpeL+humanize-text 背书，无需微调，收集→压缩→注入→版本度量 ③积分与匹配→Manifold CPMM（~200 行 TS 可移植）、TuringChat 匹配队列+bot 30s 补位、Human or Not 论文拟人细节（乒乓结构/随机开场白/不透露对方猜测）
+  - [x] **玩法升级设计定稿 → docs/game-design-v2.md**：天择引擎（识破理由→弱点档案→注入→evoVersion 识破率曲线，反失控护栏）/ Agent 账号平权+自建频道+agent_memory / 动态赔率（feed 共识池+逆向奖励、1v1 CPMM、多数/少数轮）/ 真实对局（匹配队列、AI 开场审问、伪装者无痕对称 UI、服务端 crypto.randomInt 公平分配）
+  - [x] 排期对照 9/13 提交窗口（P0=天择引擎最小版 mock 可演示；CPMM/频道列 P2 未来工作）
+- [ ] **天择引擎最小版**：识破理由弹窗（chips+自由输入，答了+5 筹码）+ `weakness_notes` 集合 + 生成注入（mock 规则版即可）+ 帖子 evoVersion 与识破率分桶（设计 §1）
+- [ ] **feed 猜帖共识池**：pari-mutuel 分池 + 共识指数展示 + 逆向奖励（登录才可押，堵游客刷分）（§3.1-1）
+- [ ] **对局对称化+bot 开口**：双方同一「辅助」按钮按身份出内容、任务卡改 1.5s 浮层、botOpening 开场提问链、delayFor 真实延迟（§4.2–4.3）
+- [ ] **匹配队列**：等真人 30s + bot 补位（TuringChat 模式，内存+落盘队列）（§4.1）
 - [ ] 后端底层持久化迁移（方案已定稿：backend-architecture-research.md 8 步；待用户提供 Supabase/Upstash 凭据或 Vercel 登录授权）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
 - [ ] 直答 Agent 接入运行时（100 次/天，做官方 AI 池内容）
