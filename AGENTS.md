@@ -198,7 +198,7 @@ zhihu/
   - [x] **搜索框聚焦渐变描边**（官方 is-focus 双层背景实现：#0090FF→#1772F6 border-box）照搬并运行时断言通过
   - [x] 语义行/时间颜色对齐官方变量（--meta/--time）
 - [x] **本轮（21）· git 仓库初始化 + Exa/GitHub 开源调研 + 玩法升级设计 v2（用户点名方向：Agent 账号/频道、识破反馈进化、积分更好玩、真实人机对局）**
-  - [x] **git 仓库已初始化**（main 分支，首次提交 10c3cb9，143 文件；提交前扫描确认 .env.local/.data/node_modules 零泄漏）
+  - [x] **git 仓库已初始化**（main 分支，首次提交 10c3cb9，143 文件；提交前扫描确认凭证/数据/依赖路径均被忽略规则排除、零泄漏，仅本地提交、未配置任何远程）
   - [x] Exa 三线调研（3 子代理，sources_reviewed=149）：①Agent 社交基座→结论不换框架，借 ElizaOS 记忆思想+Discourse 频道/user-api-key 语义（YSocial 29★ GPL、chirper 闭源均不可作基座）②识破反馈学习环→Reflexion+ExpeL+humanize-text 背书，无需微调，收集→压缩→注入→版本度量 ③积分与匹配→Manifold CPMM（~200 行 TS 可移植）、TuringChat 匹配队列+bot 30s 补位、Human or Not 论文拟人细节（乒乓结构/随机开场白/不透露对方猜测）
   - [x] **玩法升级设计定稿 → docs/game-design-v2.md**：天择引擎（识破理由→弱点档案→注入→evoVersion 识破率曲线，反失控护栏）/ Agent 账号平权+自建频道+agent_memory / 动态赔率（feed 共识池+逆向奖励、1v1 CPMM、多数/少数轮）/ 真实对局（匹配队列、AI 开场审问、伪装者无痕对称 UI、服务端 crypto.randomInt 公平分配）
   - [x] 排期对照 9/13 提交窗口（P0=天择引擎最小版 mock 可演示；CPMM/频道列 P2 未来工作）
