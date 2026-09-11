@@ -1,0 +1,4 @@
+.DS_Store
+.mimosa/
+.playwright-mcp/
+*.log
