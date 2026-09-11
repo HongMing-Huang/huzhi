@@ -44,12 +44,15 @@ export async function botReply(room: Room, bot: Player, turn: number): Promise<C
 
   const prev = room.messages[room.messages.length - 1];
   const gap = prev ? delayFor(bot.identity) : 1200;
+  // 真实等待（封顶 4s）：「回复耗时」不再同帧伪造，侦探的节奏线索与实际行为自洽
+  const wait = Math.min(Math.round(gap), 4000);
+  await new Promise((r) => setTimeout(r, wait));
   return {
     id: `m_${Date.now()}_${secureRand().toString(36).slice(2, 8)}`,
     from: bot.id,
     text,
     ts: Date.now(),
-    responseMs: Math.round(gap),
+    responseMs: wait,
   };
 }
 

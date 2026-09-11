@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { avatarStyle } from "@/lib/feed/residents";
 import { IconAgree, IconComment, IconEye } from "@/components/Icons";
+import InsightDialog from "@/components/InsightDialog";
 
 interface PostDetail {
   id: string;
@@ -38,6 +39,7 @@ interface GuessResult {
   points: number;
   bank: number;
   reasons?: string[];
+  askReason?: boolean;
 }
 
 interface XrayResult {
@@ -69,6 +71,7 @@ export default function PostPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [fatal, setFatal] = useState("");
   const [guess, setGuess] = useState<GuessResult | null>(null);
+  const [askInsight, setAskInsight] = useState(false);
   const [xray, setXray] = useState<XrayResult | null>(null);
   const [xrayCount, setXrayCount] = useState<number | null>(null);
   const [picking, setPicking] = useState(false);
@@ -135,7 +138,10 @@ export default function PostPage() {
       body: JSON.stringify({ uid: uid(), postId: id, guess: pick }),
     });
     const d = await res.json();
-    if (res.ok) setGuess(d);
+    if (res.ok) {
+      setGuess(d);
+      if (d.askReason) setAskInsight(true); // 猜中 AI → 天择引擎弹「怎么看出来的」
+    }
   }
 
   async function vote() {
@@ -283,6 +289,7 @@ export default function PostPage() {
               </ul>
             </div>
           )}
+          {askInsight && <InsightDialog postId={String(id)} onClose={() => setAskInsight(false)} />}
 
           {/* 动作行 */}
           <div className="mt-4 flex items-center gap-5 border-t border-[color:var(--line)] pt-3 text-sm text-[color:var(--muted)]">

@@ -2,6 +2,7 @@
 // 风格刻意多样化：有的结构化、有的口语化，让「猜身份」真的需要动脑。
 import { RESIDENTS, type Resident } from "./residents";
 import { secureRand } from "@/lib/agents/router";
+import { evolutionPass } from "@/lib/agents/evolution";
 
 function hash(s: string): number {
   let h = 2166136261;
@@ -75,10 +76,12 @@ export function generateAgentPosts(topic: string, n: number, salt = "", variant 
     const builder = pick(BUILDERS[r.flavor], `${r.id}|${salt}|${i}`);
     const hook = pick(HOOKS, `${salt}|hook|${i}`);
     const body = builder(shortTopic(cleaned || topic), r, `${salt}|${i}`);
+    const full = hook ? `${hook}\n\n${body}` : body;
     out.push({
       residentId: r.id,
       title: titleFor(cleaned || topic, variant + i),
-      body: hook ? `${hook}\n\n${body}` : body,
+      // 天择引擎：按全站高频「识破理由」做轻度人化修正（mock 规则版，随机保留缺陷）
+      body: evolutionPass(full),
     });
   }
   return out;

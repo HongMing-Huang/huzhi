@@ -202,11 +202,23 @@ zhihu/
   - [x] Exa 三线调研（3 子代理，sources_reviewed=149）：①Agent 社交基座→结论不换框架，借 ElizaOS 记忆思想+Discourse 频道/user-api-key 语义（YSocial 29★ GPL、chirper 闭源均不可作基座）②识破反馈学习环→Reflexion+ExpeL+humanize-text 背书，无需微调，收集→压缩→注入→版本度量 ③积分与匹配→Manifold CPMM（~200 行 TS 可移植）、TuringChat 匹配队列+bot 30s 补位、Human or Not 论文拟人细节（乒乓结构/随机开场白/不透露对方猜测）
   - [x] **玩法升级设计定稿 → docs/game-design-v2.md**：天择引擎（识破理由→弱点档案→注入→evoVersion 识破率曲线，反失控护栏）/ Agent 账号平权+自建频道+agent_memory / 动态赔率（feed 共识池+逆向奖励、1v1 CPMM、多数/少数轮）/ 真实对局（匹配队列、AI 开场审问、伪装者无痕对称 UI、服务端 crypto.randomInt 公平分配）
   - [x] 排期对照 9/13 提交窗口（P0=天择引擎最小版 mock 可演示；CPMM/频道列 P2 未来工作）
-- [ ] **天择引擎最小版**：识破理由弹窗（chips+自由输入，答了+5 筹码）+ `weakness_notes` 集合 + 生成注入（mock 规则版即可）+ 帖子 evoVersion 与识破率分桶（设计 §1）
+- [x] **本轮（22）· browser-use 组件级提取（DOM/间距/动画/JS）+ FeedCard 结构重写**
+  - [x] browser-use(IAB) 提取知乎登录页：淡蓝背景 rgb(184,229,248)、提交钮 352×36·3px·#1772F6、输入框 48px 底线式、tab 激活 #09408E（截图留档）
+  - [x] 已登录会话提取关注流**官方 DOM 结构**（Card.TopstoryItem→Feed→FeedSource(firstline+Bull+byline)→ContentItem(h2+meta×6+RichContent.is-collapsed)）与**精确间距**（卡 padding 15/16px、标题 margin -4px、正文 9/-4px、动作行 10/-10px、行高 28.8/25.05）
+  - [x] 动画三档实测（0.14s hover / 0.3s 状态 / 0.5s 弹层，ease-out+linear）→ 固化 --dur-fast/state/layer token；JS 确认 React SSR（js-initialData 注水）
+  - [x] FeedCard 按官方结构重写：语义行（头像+作者名+发布了想法+·+时间）、标题 18px/28.8、正文 15px/25.05、动作行 py-10px 14px 灰蓝；截图 docs/screenshots/v15-official-structure.png
+  - [x] 规格追加 docs/research/zhihu-design-extraction.md §7
+- [x] **本轮（23）· 开源底座采纳决策 + Agent 通道 v2 + 天择引擎落地（用户定调：不自建设施，站开源底座）**
+  - [x] Exa 三线调研（3 子代理 120 源）→ docs/research/oss-base-and-channel-v2.md：**底座定稿 Supabase 托管 + Upstash + Vercel**（Convex 不能自托管且迁移即重写、PocketBase 需自扛运维，均否；替换映射：JSON DB→Postgres、scrypt→Supabase Auth、SSE 自轮询→Realtime Broadcast、内存限流→Upstash 滑窗）；交互范式清单（assistant-ui「点踩要理由」等）；llms.txt v2/MCP/IETF agent-friendly API 生态结论（hzk_ 与 Discourse user-api-key 模式对齐）
+  - [x] **天择引擎数据环落地**：识破理由弹窗（InsightDialog，6 chips+自由输入，登录 +5/帖）+ `weakness_notes` 集合（evolution.ts，cap 2000）+ evolutionPass 规则注入 feed 生成（护栏：≤3 规则、一半帖子原样放行，永不毕业）+ guess 返回 askReason 钩子；详情页已接线（evoVersion 分桶与信息流入口待做）
+  - [x] **对局对称化（部分）**：assist kind:"auto" 服务端按身份分流（伪装者→AI 腔参考/真人→特征线索），对局页改单一「辅助」按钮——按钮存在不再暴露伪装者；bot 真实延迟（sleep 封顶 4s，responseMs=实际值，节奏线索自洽）（任务卡浮层与 botOpening 待做）
+  - [x] **Agent 通道 v2**：新 `GET /api/agents/topics`（话题只读，JSON/markdown，补齐 topics→feed→post 闭环）+ `/openapi.json`（OpenAPI 3.1，7 端点契约=MCP 自动生成入口）+ llms.txt 升 v2
+  - [x] tsc --noEmit 零错误；仅提交本轮自建/自改文件（未触碰并行会话的 page.tsx/agents 页未提交变更）
+- [ ] 天择引擎剩余：帖子 evoVersion + 识破率按版本分桶 + 居民主页进化曲线 + 信息流卡片弹窗入口（数据环已通）
 - [ ] **feed 猜帖共识池**：pari-mutuel 分池 + 共识指数展示 + 逆向奖励（登录才可押，堵游客刷分）（§3.1-1）
-- [ ] **对局对称化+bot 开口**：双方同一「辅助」按钮按身份出内容、任务卡改 1.5s 浮层、botOpening 开场提问链、delayFor 真实延迟（§4.2–4.3）
+- [ ] 对局剩余：任务卡改 1.5s 浮层、botOpening 开场提问链（§4.2–4.3）
 - [ ] **匹配队列**：等真人 30s + bot 补位（TuringChat 模式，内存+落盘队列）（§4.1）
-- [ ] 后端底层持久化迁移（方案已定稿：backend-architecture-research.md 8 步；待用户提供 Supabase/Upstash 凭据或 Vercel 登录授权）
+- [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
 - [ ] 直答 Agent 接入运行时（100 次/天，做官方 AI 池内容）
 - [ ] 道具商店（伪装道具/侦探工具/反套路）接入对局

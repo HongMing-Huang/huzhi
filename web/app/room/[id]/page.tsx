@@ -96,17 +96,12 @@ export default function RoomPage() {
     }
   }
 
-  const analyze = useCallback(async () => {
-    const d = await post("assist", { kind: "detective" });
-    if (d?.clues) setClues(d.clues as Clue[]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, pid]);
-
-  const askDisguise = useCallback(async () => {
-    // 用我最近一条发言做草稿；没发过言就用话题造一句
+  // 对称辅助：双方同一个按钮，服务端按身份分流（伪装者→AI 腔参考；真人→特征线索）
+  const assist = useCallback(async () => {
     const mine = data?.messages.filter((m) => m.from === pid).slice(-1)[0]?.text;
     const draft = mine ?? `关于「${data?.topic.title ?? "这个话题"}」，我先说说我的看法`;
-    const d = await post("assist", { kind: "disguise", draft });
+    const d = await post("assist", { kind: "auto", draft });
+    if (d?.clues) setClues(d.clues as Clue[]);
     if (d?.suggestions) {
       setSuggestions(d.suggestions as string[]);
       setAssistNote(d.note ?? "");
@@ -225,17 +220,12 @@ export default function RoomPage() {
         onSend={(text) => post("message", { text })}
       />
 
-      {/* 辅助工具行 */}
+      {/* 辅助工具行（对称：双方同一按钮，服务端按身份给不同内容） */}
       {chatting && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button onClick={analyze} disabled={busy} className="btn btn-plain border border-[color:var(--line)] px-3 py-1.5 text-xs">
-            <IconSearchIco size={14} className="inline" /> 特征分析 · 侦探辅助
+          <button onClick={assist} disabled={busy} className="btn btn-plain border border-[color:var(--line)] px-3 py-1.5 text-xs">
+            <IconSearchIco size={14} className="inline" /> 辅助
           </button>
-          {disguised && (
-            <button onClick={askDisguise} disabled={busy} className="btn btn-plain border border-[color:var(--line)] px-3 py-1.5 text-xs">
-              <IconMask size={14} className="inline" /> 伪装参考 · 须手改
-            </button>
-          )}
           {data.opponent.hasGuessed && !me.guess && (
             <span className="text-xs text-[color:var(--gold)]">对方已锁定 —— 你还在犹豫，注池随时开。</span>
           )}

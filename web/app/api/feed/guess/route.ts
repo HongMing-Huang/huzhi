@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     doubled,
     bank,
     reasons: result.reasons,
+    askReason: result.correct === true && result.identity === "ai", // 猜中 AI → 天择引擎弹「怎么看出来的」
   });
 }
 

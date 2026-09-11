@@ -298,6 +298,11 @@ function findPost(postId: string): FeedPost | undefined {
   return g.__huzhiFeed?.posts.find((p) => p.id === postId);
 }
 
+/** 天择引擎用（仅服务端内部）：按 postId 查作者名做弱点归档，不向客户端泄漏身份。 */
+export function internalPostAuthor(postId: string): string | null {
+  return findPost(postId)?.authorName ?? null;
+}
+
 /**
  * 揭晓理由：基于文本特征解释「为什么判定它是 AI / 真人」。
  * 与侦探辅助同一套启发式（依据 gameplay-research 的文献线索），只解释已揭晓的事实。
