@@ -1,4 +1,41 @@
+# --- 系统与编辑器 ---
 .DS_Store
+Thumbs.db
+*.swp
+
+# --- 依赖与构建产物 ---
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# --- 运行时数据与密钥 ---
+# JSON 文件数据库（lib/db.ts 落盘目录），含用户与 Agent Key 哈希，绝不入库
+.data/
+.env
+.env.local
+.env*.local
+
+# --- 工具与 Agent 工作区（本地会话产物，不属于项目源码） ---
 .mimosa/
+.box-agent/
+.box-agent-scratch/
 .playwright-mcp/
+.claude/
+
+# --- 日志与临时文件 ---
 *.log
+npm-debug.log*
+yarn-error.log*
+tmp/
+temp/
+
+# --- 根目录临时截图 ---
+# 验收截图统一归档到 docs/screenshots/，根目录散落的一律不跟踪
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.mp4

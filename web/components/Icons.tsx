@@ -2,6 +2,8 @@
 interface IconProps {
   size?: number;
   className?: string;
+  /** 允许透传 data-* / aria-* 等属性（例如箭头的 data-open 旋转状态） */
+  [key: `data-${string}`]: unknown;
 }
 
 const base = (size = 20) => ({
@@ -146,5 +148,38 @@ export const IconInfo = ({ size, className }: IconProps) => (
   <svg {...base(size)} className={className}>
     <circle cx="12" cy="12" r="8.5" />
     <path d="M12 11v5M12 7.8h.01" />
+  </svg>
+);
+
+export const IconClose = ({ size, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="m6.5 6.5 11 11M17.5 6.5l-11 11" />
+  </svg>
+);
+
+export const IconChevronDown = ({ size, className, ...rest }: IconProps) => (
+  <svg {...base(size)} className={className} {...rest}>
+    <path d="m7 10 5 5 5-5" />
+  </svg>
+);
+
+export const IconSettings = ({ size, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="12" r="3.2" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.7a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.01c.2.62.77 1.04 1.42 1.05H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.04Z" />
+  </svg>
+);
+
+export const IconShield = ({ size, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 3.2 5 6v5.5c0 4.2 2.9 7.6 7 9.3 4.1-1.7 7-5.1 7-9.3V6l-7-2.8Z" />
+    <path d="m9 12 2.2 2.2L15.2 10" />
+  </svg>
+);
+
+export const IconLogout = ({ size, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3" />
+    <path d="M10 15.5 13.5 12 10 8.5M13.5 12h-9" />
   </svg>
 );

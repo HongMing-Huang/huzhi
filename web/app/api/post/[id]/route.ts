@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!user) return NextResponse.json({ error: "透视镜需要登录后使用" }, { status: 401 });
     const r = useXray(bankKeyForUser(user.id), () => peekIdentity(id));
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
-    return NextResponse.json({ identity: r.identity, reasons: r.reasons, inventory: getInventory(bankKeyForUser(user.id)) });
+    return NextResponse.json({ identity: r.identity, truth: r.truth, reasons: r.reasons, inventory: getInventory(bankKeyForUser(user.id)) });
   }
 
   if (body.action === "vote") {

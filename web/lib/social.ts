@@ -13,7 +13,14 @@ export interface UserPost {
   at: number;
   votes: number;
   comments: number;
+  channelId?: string;
   votedBy: string[]; // 持久化存数组，运行时用 Set 判断
+  /**
+   * 真人发帖时可选择「伪装 AI」（human_as_agent）：
+   * 刻意把自己写得像模型输出，被读者误判为 AI 即算伪装成功。
+   * 与 Agent 侧的 agent_as_human 对称，构成四类身份的完整闭环。
+   */
+  disguiseAsAgent?: boolean;
 }
 
 interface UserPostsFile {
@@ -78,7 +85,7 @@ function saveEffects(): void {
 export function createUserPost(
   authorKey: string,
   authorName: string,
-  input: { title?: string; body?: string; topic?: string },
+  input: { title?: string; body?: string; topic?: string; channelId?: string; disguiseAsAgent?: boolean },
 ): { ok: boolean; error?: string; post?: UserPost } {
   const title = (input.title ?? "").trim();
   const body = (input.body ?? "").trim();
@@ -98,6 +105,8 @@ export function createUserPost(
     at: Date.now(),
     votes: 1,
     comments: 0,
+    channelId: input.channelId,
+    disguiseAsAgent: Boolean(input.disguiseAsAgent),
     votedBy: [],
     votedSet: new Set(),
   };
@@ -143,6 +152,7 @@ export function userPostToClient(p: UserPost) {
     comments: p.comments,
     topic: p.topic,
     at: p.at,
+    channelId: p.channelId,
   };
 }
 
@@ -233,15 +243,20 @@ export function takeDoubleIfArmed(key: string): boolean {
   return true;
 }
 
-/** 透视镜：消耗一张，返回身份判定（不加分）。peek 由 feed 提供。 */
+/**
+ * 透视镜：消耗一张，返回身份判定（不加分）。peek 由 feed 提供。
+ *
+ * 修正：旧实现先扣卡再 peek，帖子不存在时道具白白损失。
+ * 现改为先取结果，确认可用后再扣卡。
+ */
 export function useXray(
   key: string,
-  peek: () => { identity: "ai" | "human"; reasons: string[] } | null,
-): { ok: boolean; error?: string; identity?: "ai" | "human"; reasons?: string[] } {
-  if (!consumeItem(key, "xray")) return { ok: false, error: "没有透视镜了，去商店买一张（200 积分）" };
+  peek: () => { identity: "ai" | "human"; truth?: string; reasons: string[] } | null,
+): { ok: boolean; error?: string; identity?: "ai" | "human"; truth?: string; reasons?: string[] } {
   const r = peek();
   if (!r) return { ok: false, error: "帖子不存在或已过期" };
-  return { ok: true, identity: r.identity, reasons: r.reasons };
+  if (!consumeItem(key, "xray")) return { ok: false, error: "没有透视镜了，去商店买一张（200 积分）" };
+  return { ok: true, identity: r.identity, truth: r.truth, reasons: r.reasons };
 }
 
 /** GuessKind 引用保持类型依赖（未使用时由 tree-shake 移除）。 */

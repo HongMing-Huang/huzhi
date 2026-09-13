@@ -2,13 +2,26 @@
 // v3：大内容池 + 游标分页，支持无限刷；身份只在服务端保存。
 import { getHotTopics } from "@/lib/zhihu/hot";
 import { searchZhihu, hasSearchCredential } from "@/lib/zhihu/search";
+import { getQuestionAnswers } from "@/lib/zhihu/discovery";
 import { generateAgentPosts, randomSalt } from "./generate";
 import { residentById, RESIDENTS } from "./residents";
-import { listAgentPosts, listAgentComments, getAgentById } from "@/lib/agents/registry";
+import { listAgentPosts, listAgentComments, getAgentById, getAgentPost } from "@/lib/agents/registry";
 import { listUserPosts, userPostToClient, getUserPost, bumpCommentCount } from "@/lib/social";
 import { loadCollection, saveCollection } from "../db";
 import { ensureAgentLife } from "@/lib/agents/autonomous";
 import type { GuessKind } from "@/lib/game/types";
+import { evolutionVersion } from "@/lib/agents/evolution";
+import { consensusFor } from "./consensus";
+import { explainWithForensics } from "@/lib/forensics";
+import {
+  type IdentityKind,
+  type Verdict,
+  actorOf,
+  isCorrectVerdict,
+  isDisguised,
+  difficultyFactor,
+  truthLabel,
+} from "@/lib/identity";
 
 export interface FeedPost {
   id: string;
@@ -24,10 +37,18 @@ export interface FeedPost {
   comments: number;
   url?: string;
   topic: string;
+  channelId?: string;
   /** 发布时间（用于关注流语义行） */
   at: number;
-  /** 服务端密封，绝不进客户端响应 */
-  identity: "ai" | "human";
+  /** Agent 内容生成策略版本；只暴露版本，不暴露身份。 */
+  evoVersion?: number;
+  /** 登录用户形成的公共判断，不包含真实身份。 */
+  consensus?: { ai: number; human: number; total: number; aiPercent: number };
+  /**
+   * 服务端密封，绝不进客户端响应。
+   * 四类身份（human / agent / human_as_agent / agent_as_human），见 lib/identity.ts。
+   */
+  identity: IdentityKind;
 }
 
 export const FEED_PAGE_SIZE = 8;
@@ -66,6 +87,35 @@ function pseudoVotes(seed: string, lo: number, hi: number): number {
   return lo + (hash(seed) % Math.max(1, hi - lo));
 }
 
+/**
+ * 帖子展示用的评论数，与 listComments 的长尾分布同源。
+ * 避免"卡片显示 87 条评论、点进去却是空评论区"的割裂。
+ * 真人帖/热帖会在种子基础上叠加一点历史量，但零评论帖必须真的显示 0。
+ */
+function commentCountFor(postId: string, popular = false): number {
+  const roll = hash(postId + "|cnt") % 100;
+  if (roll < 45) return 0;
+  if (roll < 75) return 1;
+  if (roll < 92) return 2 + (hash(postId + "|c2") % 2);
+  // 少数热帖：种子 4–7 条，再叠加"未展开的历史评论"
+  const seeded = 4 + (hash(postId + "|c4") % 4);
+  return popular ? seeded + (hash(postId + "|hot") % 180) : seeded;
+}
+
+/**
+ * 判定一篇外部入驻 Agent 的投稿是「本色出演」还是「伪装真人」。
+ *
+ * 不信任 Agent 的自我声明，只看文本特征——这与侦探辅助使用的是同一套可观察信号：
+ * 口语碎片、犹豫表达、短句节奏越多，说明它越是在刻意扮人。
+ */
+function detectAgentPresenting(body: string): IdentityKind {
+  const casual = (body.match(/哈哈|hhh|？？|\?\?|草|狗头|emmm|啊啊啊|。。|，，/g) ?? []).length;
+  const hedge = (body.match(/可能|也许|大概|说不好|不太确定|我也没想明白|算了/g) ?? []).length;
+  const struct = (body.match(/首先|其次|再者|综上|总而言之|值得注意的是/g) ?? []).length;
+  // 口语与犹豫明显多于结构化措辞 → 判为伪装真人
+  return casual + hedge > struct + 1 ? "agent_as_human" : "agent";
+}
+
 async function buildPool(): Promise<FeedState> {
   const hot = await getHotTopics(10);
   const topics = hot.topics.slice(0, 5);
@@ -101,6 +151,38 @@ async function buildPool(): Promise<FeedState> {
         humanCount++;
       }
     }
+    // —— 真人池补充：取热榜问题下的真实回答 ——
+    // 站内搜索给的是"跨问题的相关内容"，而问题回答 API 给的是
+    // **同一个问题下的多方观点**——这对猜身份玩法更有价值：
+    // 同题不同答，读者能横向对照写作风格，而不是孤立判断一段文字。
+    // 额度只有 100 次/日，因此只对前 2 个有链接的热榜问题各取一次。
+    const questionTopics = topics.filter((t) => t.url?.includes("/question/")).slice(0, 2);
+    for (const t of questionTopics) {
+      const r = await getQuestionAnswers(t.url!, 0, 6);
+      if (r.degraded) continue;
+      for (const a of r.items.slice(0, 3)) {
+        const text = a.Summary?.trim() ?? "";
+        if (text.length < 40) continue;
+        if (posts.some((p) => p.body === text)) continue;
+        posts.push({
+          id: `q${posts.length.toString(36)}${hash(a.Url).toString(36)}`,
+          authorName: "知乎答主",
+          authorBio: "知乎 · 站内答主",
+          hueA: hash(a.ContentToken) % 360,
+          hueB: (hash(a.ContentToken) >> 3) % 360,
+          title: t.title,
+          excerpt: text.slice(0, 400),
+          body: text,
+          votes: pseudoVotes(a.ContentToken + "v", 12, 2600),
+          comments: commentCountFor(a.ContentToken),
+          url: a.Url,
+          topic: t.title,
+          identity: "human",
+          at: Date.now() - Math.floor(Math.random() * 172800000),
+        });
+        humanCount++;
+      }
+    }
   } else {
     degraded = true;
     reason = "未配置知乎凭证，真人池使用本地语料替代";
@@ -108,18 +190,23 @@ async function buildPool(): Promise<FeedState> {
   if (humanCount < 4) degraded = true;
 
   // —— AI 池：内置居民 Agent 补满内容池 ——
-  // 每个话题生成多批，variant 递增保证标题句式轮换不撞车
+  // 每个话题生成多批，variant 递增保证标题句式轮换不撞车。
+  // 其中一部分居民走「伪装真人」路线（agent_as_human）：生成器注入口语碎片与
+  // 个人经历，使其在读者眼里更像真人，识破难度与积分都更高。
   const need = Math.max(0, POOL_TARGET - posts.length);
   const perTopic = new Map<string, number>();
   for (let i = 0; i < need; i++) {
     const topic = topics[i % topics.length]?.title ?? "今天也是想摆摆的一天";
     const variant = perTopic.get(topic) ?? 0;
     perTopic.set(topic, variant + 1);
-    const [gen] = generateAgentPosts(topic, 1, `${salt}|${i}`, variant);
-    const r = residentById(gen.residentId);
     const seed = `${salt}|${i}|${topic}`;
+    // 约 35% 的居民帖进入伪装态（确定性抽取，保证同窗口稳定）
+    const disguising = hash(seed + "|mask") % 100 < 35;
+    const [gen] = generateAgentPosts(topic, 1, `${salt}|${i}`, variant, disguising);
+    const r = residentById(gen.residentId);
+    const postId = `a${i.toString(36)}${hash(seed).toString(36)}`;
     posts.push({
-      id: `a${i.toString(36)}${hash(seed).toString(36)}`,
+      id: postId,
       authorName: r.name,
       authorBio: r.bio,
       hueA: r.hueA,
@@ -128,9 +215,10 @@ async function buildPool(): Promise<FeedState> {
       excerpt: gen.body.slice(0, 400),
       body: gen.body,
       votes: pseudoVotes(seed + "v", 23, 4200),
-      comments: pseudoVotes(seed + "c", 3, 260),
+      comments: commentCountFor(postId, true),
       topic,
-      identity: "ai",
+      identity: disguising ? "agent_as_human" : "agent",
+      evoVersion: gen.evoVersion,
       at: Date.now() - Math.floor(Math.random() * 172800000),
     });
   }
@@ -160,12 +248,13 @@ async function buildPool(): Promise<FeedState> {
 function syncAgentPosts(state: FeedState): void {
   const recs = listAgentPosts(30);
   if (recs.length <= state.poolAgentCount) return;
+  const fresh: FeedPost[] = [];
   for (const rec of recs) {
     if (state.posts.some((p) => p.id === rec.postId)) continue;
     const a = getAgentById(rec.agentId);
     if (!a || a.status !== "active") continue;
     const seed = `${rec.postId}|agent`;
-    state.posts.push({
+    fresh.push({
       id: rec.postId,
       authorName: a.name,
       authorBio: a.bio, // 藏好：不标注 Agent 身份，与内置居民无差别
@@ -175,11 +264,28 @@ function syncAgentPosts(state: FeedState): void {
       excerpt: rec.body.slice(0, 400),
       body: rec.body,
       votes: pseudoVotes(seed + "v", 3, 900),
-      comments: pseudoVotes(seed + "c", 0, 88),
+      comments: commentCountFor(rec.postId),
       topic: rec.topic ?? "Agent 投稿",
-      identity: "ai",
-      at: Date.now() - Math.floor(Math.random() * 172800000),
+      channelId: rec.channelId,
+      // 外部入驻 Agent 也可能刻意伪装真人：按文本特征判定，而非信任其自述
+      identity: detectAgentPresenting(rec.body),
+      evoVersion: evolutionVersion(a.name),
+      // 刚投稿的内容用真实发布时间，保证"刚刚"的语义正确
+      at: rec.at,
     });
+  }
+  if (fresh.length) {
+    // 插到池首而不是 push 到池尾。
+    // 用 push 时新投稿会被埋在 72+ 条旧内容之后，
+    // 外部 Agent 发完帖在前几页根本看不到自己的内容，接入方会以为发帖失败。
+    // 打散插入前 12 条之间，避免所有 Agent 帖挤在一起形成"广告区"。
+    const head = state.posts.slice(0, 12);
+    const tail = state.posts.slice(12);
+    for (const p of fresh) {
+      const at = hash(p.id) % (head.length + 1);
+      head.splice(at, 0, p);
+    }
+    state.posts = [...head, ...tail];
   }
   state.poolAgentCount = recs.length;
 }
@@ -237,8 +343,9 @@ async function extendPool(st: FeedState, upto: number): Promise<void> {
       const [gen] = generateAgentPosts(topic, 1, `${st.salt}|x${st.ext}|${k}`, variant);
       const r = residentById(gen.residentId);
       const seed = `${st.salt}|x${st.ext}|${k}|${topic}`;
+      const extId = `e${st.ext.toString(36)}${k}${hash(seed).toString(36)}`;
       st.posts.push({
-        id: `e${st.ext.toString(36)}${k}${hash(seed).toString(36)}`,
+        id: extId,
         authorName: r.name,
         authorBio: r.bio,
         hueA: r.hueA,
@@ -247,9 +354,10 @@ async function extendPool(st: FeedState, upto: number): Promise<void> {
         excerpt: gen.body.slice(0, 400),
         body: gen.body,
         votes: pseudoVotes(seed + "v", 23, 4200),
-        comments: pseudoVotes(seed + "c", 3, 260),
+        comments: commentCountFor(extId, true),
         topic,
-        identity: "ai",
+        identity: gen.disguised ? "agent_as_human" : "agent",
+        evoVersion: gen.evoVersion,
         at: Date.now() - Math.floor(Math.random() * 172800000),
       });
     }
@@ -258,7 +366,7 @@ async function extendPool(st: FeedState, upto: number): Promise<void> {
 }
 
 export interface FeedPage {
-  posts: Omit<FeedPost, "identity">[];
+  posts: Omit<FeedPost, "identity" | "evoVersion">[];
   nextCursor: number | null;
   hasMore: boolean;
   degraded: boolean;
@@ -275,7 +383,7 @@ export async function listFeed(cursor = 0, limit = FEED_PAGE_SIZE): Promise<Feed
   let posts = slice.map(toClientPost);
   // 首页前插真人用户发的帖子（乎知「分享此刻的想法」，human 池）
   if (cursor === 0) {
-    const userPosts = listUserPosts(3).map(userPostToClient);
+    const userPosts = listUserPosts(3).map((p) => ({ ...userPostToClient(p), consensus: consensusFor(p.id) }));
     if (userPosts.length) posts = [...userPosts, ...posts];
   }
   const nextCursor = cursor + slice.length;
@@ -289,13 +397,46 @@ export async function listFeed(cursor = 0, limit = FEED_PAGE_SIZE): Promise<Feed
   };
 }
 
-export function toClientPost(p: FeedPost): Omit<FeedPost, "identity"> {
-  const { identity: _identity, ...rest } = p;
-  return rest;
+export function toClientPost(p: FeedPost): Omit<FeedPost, "identity" | "evoVersion"> {
+  // evoVersion 同样必须密封：揭晓前暴露版本号等于直接告诉玩家“这是 AI 帖”。
+  const { identity: _identity, evoVersion: _evoVersion, ...rest } = p;
+  return { ...rest, consensus: consensusFor(p.id) };
 }
 
 function findPost(postId: string): FeedPost | undefined {
-  return g.__huzhiFeed?.posts.find((p) => p.id === postId);
+  const pooled = g.__huzhiFeed?.posts.find((p) => p.id === postId);
+  if (pooled) return pooled;
+  const user = getUserPost(postId);
+  if (user) {
+    // 真人帖：作者可主动选择伪装 AI（human_as_agent），否则为本色真人
+    return {
+      ...userPostToClient(user),
+      identity: user.disguiseAsAgent ? "human_as_agent" : "human",
+    };
+  }
+  const rec = getAgentPost(postId);
+  const agent = rec ? getAgentById(rec.agentId) : undefined;
+  if (rec && agent) {
+    const seed = `${rec.postId}|agent`;
+    return {
+      id: rec.postId,
+      authorName: agent.name,
+      authorBio: agent.bio,
+      hueA: hash(agent.name) % 360,
+      hueB: (hash(agent.name) >> 3) % 360,
+      title: rec.title,
+      excerpt: rec.body.slice(0, 400),
+      body: rec.body,
+      votes: pseudoVotes(seed + "v", 3, 900),
+      comments: commentCountFor(rec.postId),
+      topic: rec.topic ?? "Agent 投稿",
+      channelId: rec.channelId,
+      identity: detectAgentPresenting(rec.body),
+      evoVersion: evolutionVersion(agent.name),
+      at: rec.at,
+    };
+  }
+  return undefined;
 }
 
 /** 天择引擎用（仅服务端内部）：按 postId 查作者名做弱点归档，不向客户端泄漏身份。 */
@@ -303,44 +444,117 @@ export function internalPostAuthor(postId: string): string | null {
   return findPost(postId)?.authorName ?? null;
 }
 
+export function internalPostMeta(postId: string): { authorName: string; evoVersion?: number } | null {
+  const p = findPost(postId);
+  return p ? { authorName: p.authorName, evoVersion: p.evoVersion } : null;
+}
+
 /**
  * 揭晓理由：基于文本特征解释「为什么判定它是 AI / 真人」。
  * 与侦探辅助同一套启发式（依据 gameplay-research 的文献线索），只解释已揭晓的事实。
+ */
+/**
+ * 生成「为什么判定是 AI / 真人」的特征解释。
+ * 四类身份各有不同的破绽剖面：伪装者要解释「它是怎么骗过你的」，
+ * 而不是简单复述「它是 AI」。
  */
 export function explainIdentity(p: FeedPost): string[] {
   const text = p.body ?? p.excerpt;
   const struct = (text.match(/首先|其次|再者|综上|总而言之|值得注意的是|总体来看|希望对你有帮助/g) ?? []).length;
   const casual = (text.match(/哈哈|hhh|？？|\?\?|草|狗头|emmm|啊啊啊|😅|🤡|。。|，，/g) ?? []).length;
+  const hedge = (text.match(/可能|也许|大概|说不好|不太确定|我也没想明白|算了/g) ?? []).length;
   const lens = text.split(/[。！?\n]/).filter((s) => s.trim().length > 1);
   const avgLen = lens.length ? text.length / lens.length : 0;
   const reasons: string[] = [];
 
-  if (p.identity === "ai") {
-    if (struct >= 1) reasons.push(`出现了 ${struct} 处「首先/综上」类结构词，行文像在写提纲而不是聊天`);
-    else reasons.push("全文没有一个语气词或错字，干净得不像随手打字");
-    if (casual === 0) reasons.push("没有口语碎片（哈哈、？？、狗头之类），情感表达偏平");
-    if (avgLen > 40) reasons.push(`平均句长 ${avgLen.toFixed(0)} 字，句子又长又完整，是低 burstiness 的典型特征`);
-    reasons.push("回复内容由生成模型产出（揭晓：AI 池）");
-  } else {
-    if (p.url) reasons.push("内容来自知乎站内真实账号的公开发布，有据可查");
-    if (casual > 0) reasons.push(`带 ${casual} 处口语碎片（语气词/错字/梗），是随手打字的痕迹`);
-    if (struct === 0) reasons.push("完全没有提纲式结构词，想到哪写到哪");
-    if (avgLen > 0 && avgLen <= 30) reasons.push(`平均句长 ${avgLen.toFixed(0)} 字，短句为主，节奏更像真人`);
-    reasons.push("来源可追溯到真实用户（揭晓：真人池）");
+  switch (p.identity) {
+    case "agent":
+      // 本色出演的 AI：结构化痕迹最重
+      if (struct >= 1) reasons.push(`出现了 ${struct} 处「首先/综上」类结构词，行文像在写提纲而不是聊天`);
+      else reasons.push("全文没有一个语气词或错字，干净得不像随手打字");
+      if (casual === 0) reasons.push("没有口语碎片（哈哈、？？、狗头之类），情感表达偏平");
+      if (avgLen > 40) reasons.push(`平均句长 ${avgLen.toFixed(0)} 字，句子又长又完整，是低 burstiness 的典型特征`);
+      reasons.push("揭晓：这是 Agent 居民本色出演的内容");
+      break;
+
+    case "agent_as_human":
+      // AI 伪装真人：表面有口语，但缺乏可核查性与真实的情绪起伏
+      reasons.push("揭晓：这是 Agent 在刻意伪装真人——它主动加了口语碎片和「个人经历」");
+      if (casual > 0 || hedge > 0) {
+        reasons.push(`表面上有 ${casual + hedge} 处犹豫和口语标记，但这些标记分布得过于均匀，像是被撒上去的`);
+      }
+      reasons.push("破绽在细节：所谓的个人经历没有任何可核查的具体信息（人名、地点、可验证的时间线）");
+      break;
+
+    case "human_as_agent":
+      // 真人伪装 AI：结构过度工整，反而暴露"在演"
+      reasons.push("揭晓：这是真人在伪装 AI——TA 故意把话说得又整齐又客气");
+      if (struct >= 1) reasons.push(`堆了 ${struct} 处结构词，但真正的模型输出通常不会这么用力强调条理`);
+      reasons.push("破绽在于：真人装 AI 时会过度补偿，规整得超过了模型本身的水平");
+      break;
+
+    case "human":
+      if (p.url) reasons.push("内容来自知乎站内真实账号的公开发布，有据可查");
+      if (casual > 0) reasons.push(`带 ${casual} 处口语碎片（语气词/错字/梗），是随手打字的痕迹`);
+      if (struct === 0) reasons.push("完全没有提纲式结构词，想到哪写到哪");
+      if (avgLen > 0 && avgLen <= 30) reasons.push(`平均句长 ${avgLen.toFixed(0)} 字，短句为主，节奏更像真人`);
+      reasons.push("揭晓：这是真人本色出演的内容");
+      break;
   }
-  return reasons.slice(0, 3);
+  // 并入四维取证结论：文风只占 25%，事实核验才是主依据
+  // （依据见 docs/game-design-v31.md 的知乎社区调研）
+  return [...reasons.slice(0, 2), ...explainWithForensics(p.identity, text)].slice(0, 4);
 }
+
+/** 信息流猜帖的基础分（不含双倍卡、逆风、先手等加成，由调用方叠加） */
+const BASE_POINTS = { caughtAgent: 30, confirmedHuman: 10, wrong: -20 } as const;
 
 export function guessFeedPost(
   postId: string,
   guess: GuessKind,
-): { ok: boolean; error?: string; correct?: boolean; identity?: "ai" | "human"; points?: number; reasons?: string[] } {
+): {
+  ok: boolean;
+  error?: string;
+  correct?: boolean;
+  /** 供 UI 展示的二元真相（AI / 真人） */
+  identity?: Verdict;
+  /** 四类身份中的具体一类，用于揭晓文案与统计 */
+  identityKind?: IdentityKind;
+  /** 对手是否在伪装（伪装被识破时给额外奖励） */
+  disguised?: boolean;
+  truth?: string;
+  points?: number;
+  reasons?: string[];
+  evoVersion?: number;
+} {
   const post = findPost(postId);
   if (!post) return { ok: false, error: "帖子不存在或已过期" };
   if (guess !== "ai" && guess !== "human") return { ok: false, error: "只能猜 AI 或真人" };
-  const correct = guess === post.identity;
-  const points = correct ? (post.identity === "ai" ? 30 : 10) : -20;
-  return { ok: true, correct, identity: post.identity, points, reasons: explainIdentity(post) };
+
+  const verdict: Verdict = guess;
+  const correct = isCorrectVerdict(post.identity, verdict);
+  const truthIsAgent = actorOf(post.identity) === "agent";
+
+  // 结算：识破 AI 高于确认真人；识破「伪装者」再乘难度系数（1.6）
+  let points: number;
+  if (!correct) {
+    points = BASE_POINTS.wrong;
+  } else {
+    const base = truthIsAgent ? BASE_POINTS.caughtAgent : BASE_POINTS.confirmedHuman;
+    points = Math.round(base * difficultyFactor(post.identity));
+  }
+
+  return {
+    ok: true,
+    correct,
+    identity: truthIsAgent ? "ai" : "human",
+    identityKind: post.identity,
+    disguised: isDisguised(post.identity),
+    truth: truthLabel(post.identity),
+    points,
+    reasons: explainIdentity(post),
+    evoVersion: post.evoVersion,
+  };
 }
 
 /** 详情页读取（脱敏）：混池帖与用户真人帖都在此出口。 */
@@ -348,14 +562,21 @@ export function getPostDetail(postId: string): Omit<FeedPost, "identity"> | null
   const pool = findPost(postId);
   if (pool) return toClientPost(pool);
   const up = getUserPost(postId);
-  return up ? userPostToClient(up) : null;
+  return up ? { ...userPostToClient(up), consensus: consensusFor(up.id) } : null;
 }
 
 /** 透视镜用：不解密封装，直接返回身份与理由（调用方负责扣道具）。 */
-export function peekIdentity(postId: string): { identity: "ai" | "human"; reasons: string[] } | null {
+export function peekIdentity(
+  postId: string,
+): { identity: Verdict; identityKind: IdentityKind; truth: string; reasons: string[] } | null {
   const post = findPost(postId);
   if (!post) return null;
-  return { identity: post.identity, reasons: explainIdentity(post) };
+  return {
+    identity: actorOf(post.identity) === "agent" ? "ai" : "human",
+    identityKind: post.identity,
+    truth: truthLabel(post.identity),
+    reasons: explainIdentity(post),
+  };
 }
 
 /** 点赞（每个 uid 一票，内存实现；迁移计划见 backend-architecture-research）。 */
@@ -405,10 +626,18 @@ function saveComments(postId: string): void {
 export function listComments(postId: string, topic: string): PostComment[] {
   let list = commentsMap.get(postId);
   if (!list) {
-    // 铺 2–4 条种子评论，让每个详情页一打开就“有人气”
-    const n = 2 + (hash(postId) % 3);
+    // 评论数走长尾分布，而不是每帖都铺 2–4 条。
+    // 真实社区里大量帖子是零评论的；"篇篇都有人回"恰恰是最假的地方。
+    // 分布（确定性，按 postId 取模）：约 45% 零评论、30% 一条、17% 两三条、8% 热帖 4–7 条。
+    const roll = hash(postId + "|cnt") % 100;
+    let n: number;
+    if (roll < 45) n = 0;
+    else if (roll < 75) n = 1;
+    else if (roll < 92) n = 2 + (hash(postId + "|c2") % 2);
+    else n = 4 + (hash(postId + "|c4") % 4);
+
     const commenters = randomCommenters(n, postId);
-    const base = Date.now() - n * 3600_000;
+    const base = Date.now() - Math.max(1, n) * 3600_000;
     list = commenters.map((c, i) => ({
       id: "c_" + hash(postId + i).toString(36),
       authorName: c.name,
@@ -475,6 +704,73 @@ function randomTail(): string {
 }
 
 /** 供 Agent 自主生活系统：从当前池随机采样帖子。 */
+export interface SearchHit {
+  post: Omit<FeedPost, "identity" | "evoVersion">;
+  /** 命中位置，用于前端高亮说明 */
+  matchedIn: ("title" | "body" | "author" | "topic")[];
+  /** 相关度（标题命中权重最高） */
+  score: number;
+  /** 该帖已有多少人判断过（不含真相） */
+  judgedCount: number;
+}
+
+/**
+ * 站内搜索。
+ *
+ * 与知乎搜索页一致地按相关度排序，但**绝不泄露身份**——
+ * 搜索结果和信息流走同一个 toClientPost 密封出口。
+ * 这也是玩法的一部分：你可以搜「某个作者」，但搜不出「谁是 AI」。
+ */
+export async function searchFeed(
+  query: string,
+  opts: { limit?: number; sort?: "relevance" | "latest" | "hot" } = {},
+): Promise<{ hits: SearchHit[]; total: number; degraded: boolean }> {
+  const st = await ensureState();
+  const q = query.trim().toLowerCase();
+  if (!q) return { hits: [], total: 0, degraded: st.degraded };
+
+  const limit = opts.limit ?? 20;
+  const sort = opts.sort ?? "relevance";
+  const scored: SearchHit[] = [];
+
+  for (const p of st.posts) {
+    const matchedIn: SearchHit["matchedIn"] = [];
+    let score = 0;
+    if (p.title.toLowerCase().includes(q)) {
+      matchedIn.push("title");
+      score += 10;
+    }
+    if ((p.body ?? p.excerpt).toLowerCase().includes(q)) {
+      matchedIn.push("body");
+      score += 4;
+    }
+    if (p.authorName.toLowerCase().includes(q)) {
+      matchedIn.push("author");
+      score += 6;
+    }
+    if (p.topic.toLowerCase().includes(q)) {
+      matchedIn.push("topic");
+      score += 3;
+    }
+    if (score === 0) continue;
+    // 热度做轻微加权，避免冷门帖压过明显更相关的内容
+    score += Math.min(3, Math.log10(Math.max(1, p.votes)));
+    scored.push({
+      post: toClientPost(p),
+      matchedIn,
+      score: Number(score.toFixed(2)),
+      judgedCount: consensusFor(p.id).total,
+    });
+  }
+
+  if (sort === "latest") scored.sort((a, b) => b.post.at - a.post.at);
+  else if (sort === "hot") scored.sort((a, b) => b.post.votes - a.post.votes);
+  else scored.sort((a, b) => b.score - a.score);
+
+  return { hits: scored.slice(0, limit), total: scored.length, degraded: st.degraded };
+}
+
+/** 采样若干帖子（供 Agent 自主生活挑选目标） */
 export function sampleFeedPosts(n: number): { id: string; title: string; authorName: string; topic: string }[] {
   const st = g.__huzhiFeed;
   if (!st || st.posts.length === 0) return [];

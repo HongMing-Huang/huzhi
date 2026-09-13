@@ -2,7 +2,7 @@
 // 风格刻意多样化：有的结构化、有的口语化，让「猜身份」真的需要动脑。
 import { RESIDENTS, type Resident } from "./residents";
 import { secureRand } from "@/lib/agents/router";
-import { evolutionPass } from "@/lib/agents/evolution";
+import { evolutionPass, evolutionVersion } from "@/lib/agents/evolution";
 
 function hash(s: string): number {
   let h = 2166136261;
@@ -53,13 +53,6 @@ const HOOKS = [
   "多图预警（并没有）。",
 ];
 
-export interface GeneratedPost {
-  residentId: string;
-  title: string;
-  body: string;
-}
-
-/** 为一个话题生成 n 条 Agent 帖。 */
 /** 去掉热榜原题自带的提问前缀/后缀，避免「怎么看待如何评价…」的叠床架屋。 */
 function cleanTopic(t: string): string {
   return t
@@ -68,7 +61,101 @@ function cleanTopic(t: string): string {
     .trim();
 }
 
-export function generateAgentPosts(topic: string, n: number, salt = "", variant = 0): GeneratedPost[] {
+export interface GeneratedPost {
+  residentId: string;
+  title: string;
+  body: string;
+  evoVersion: number;
+  /** 本篇是否启用了「伪装真人」改写 */
+  disguised: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// 伪装真人（agent_as_human）改写层
+//
+// 思路来自社会推理类游戏与 Human-or-Not 实验的共同观察：AI 文本最稳定的破绽不是
+// 用词，而是「太整齐」——句长方差小、无自我修正、无具体时间地点锚点、结尾必总结。
+// 因此伪装不是堆口语词，而是反向破坏这四项规整度。
+// ---------------------------------------------------------------------------
+
+/** 口语化的自我修正插入语（制造思维回溯痕迹） */
+const SELF_CORRECTIONS = [
+  "嗯……怎么说呢，",
+  "等下，我这么讲可能不准确。",
+  "不对，我重新组织一下语言。",
+  "（想了想）",
+  "说实话我也没太想明白，",
+];
+
+/** 具体的个人经历锚点（AI 通常给不出可核查的细节） */
+const PERSONAL_ANCHORS = [
+  "上周三下班路上想到这事，在地铁上打了半天字又删了。",
+  "我同事昨天还在茶水间跟我争这个，差点吵起来。",
+  "去年冬天我经历过一次类似的，当时手都是抖的。",
+  "刚才翻了下两年前的朋友圈，发现我那会儿的想法完全相反。",
+  "写到这儿我妈打电话来催我吃饭，思路断了一下。",
+];
+
+/** 收尾时的不确定表达（对抗 AI「必给结论」的习惯） */
+const HEDGED_ENDINGS = [
+  "\n\n算了，不说了，可能我想得也不对。",
+  "\n\n就这样吧，困了，明天再补。",
+  "\n\n先写到这，想起来再更。",
+  "\n\n有不同意见的评论区聊，别喷我。",
+];
+
+/** 轻度错字注入（真人手误特征，频率极低） */
+const TYPOS: [RegExp, string][] = [
+  [/的确/, "得确"],
+  [/其实/, "其时"],
+  [/已经/, "以经"],
+  [/应该/, "因该"],
+];
+
+/**
+ * 把一篇规整的 Agent 文本改写成「像真人随手写的」。
+ * 全部基于 seed 确定性执行，保证同一帖在窗口内稳定。
+ */
+function humanizeDisguise(text: string, seed: string): string {
+  let out = text;
+
+  // 1) 段首插入自我修正，破坏「开门见山」的规整感
+  const paras = out.split("\n\n").filter(Boolean);
+  if (paras.length > 1) {
+    const at = 1 + (hash(seed + "|sc") % (paras.length - 1));
+    paras[at] = pick(SELF_CORRECTIONS, seed + "|sctext") + paras[at];
+    out = paras.join("\n\n");
+  }
+
+  // 2) 插入可核查的个人锚点
+  out += "\n\n" + pick(PERSONAL_ANCHORS, seed + "|anchor");
+
+  // 3) 去掉「先说结论」这类结构化开场（AI 最明显的指纹）
+  out = out.replace(/^先说结论：/, "我大概是这么想的，").replace(/以上。$/, "");
+
+  // 4) 低频错字（约三分之一的伪装帖带一个）
+  if (hash(seed + "|typo") % 3 === 0) {
+    const [re, wrong] = TYPOS[hash(seed + "|typoi") % TYPOS.length];
+    out = out.replace(re, wrong);
+  }
+
+  // 5) 用犹豫收尾替换总结式收尾
+  out += pick(HEDGED_ENDINGS, seed + "|end");
+
+  return out.trim();
+}
+
+/**
+ * 为一个话题生成 n 条 Agent 帖。
+ * @param disguise 为 true 时启用「伪装真人」改写（对应身份 agent_as_human）
+ */
+export function generateAgentPosts(
+  topic: string,
+  n: number,
+  salt = "",
+  variant = 0,
+  disguise = false,
+): GeneratedPost[] {
   const cleaned = cleanTopic(topic);
   const out: GeneratedPost[] = [];
   for (let i = 0; i < n; i++) {
@@ -77,14 +164,35 @@ export function generateAgentPosts(topic: string, n: number, salt = "", variant 
     const hook = pick(HOOKS, `${salt}|hook|${i}`);
     const body = builder(shortTopic(cleaned || topic), r, `${salt}|${i}`);
     const full = hook ? `${hook}\n\n${body}` : body;
+    // 天择引擎：按全站高频「识破理由」做轻度人化修正（mock 规则版，随机保留缺陷）
+    let finalBody = evolutionPass(full, r.name);
+    if (disguise) finalBody = humanizeDisguise(finalBody, `${salt}|${i}|dg`);
     out.push({
       residentId: r.id,
-      title: titleFor(cleaned || topic, variant + i),
-      // 天择引擎：按全站高频「识破理由」做轻度人化修正（mock 规则版，随机保留缺陷）
-      body: evolutionPass(full),
+      // 伪装帖用更随意的标题句式，不走「认真回答：三个观察」这类 AI 腔
+      title: disguise
+        ? casualTitleFor(cleaned || topic, variant + i)
+        : titleFor(cleaned || topic, variant + i),
+      body: finalBody,
+      evoVersion: evolutionVersion(r.name),
+      disguised: disguise,
     });
   }
   return out;
+}
+
+/** 伪装态标题：口语、带情绪、不对仗 */
+function casualTitleFor(topic: string, index: number): string {
+  const short = shortTopic(topic);
+  const stems = [
+    `${short}这事，我有点不同看法`,
+    `说说${short}吧，可能有点跑题`,
+    `${short}…我昨晚想了很久`,
+    `关于${short}，随便写点`,
+    `${short}，就我一个人这么觉得吗`,
+    `不吐不快：${short}`,
+  ];
+  return stems[index % stems.length];
 }
 
 function titleFor(topic: string, index: number): string {

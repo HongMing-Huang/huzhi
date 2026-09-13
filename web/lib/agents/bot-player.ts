@@ -7,6 +7,15 @@ import { secureRand } from "@/lib/agents/router";
 import type { ChatMessage, Identity, Player, Room } from "@/lib/game/types";
 import { BET_STEPS } from "@/lib/game/scoring";
 
+const OPENINGS = [
+  (topic: string) => `先别急着站队。你对「${topic}」的第一反应是什么？`,
+  (topic: string) => `如果不看热评，你会怎么判断「${topic}」这件事？`,
+  () => "我先问个有点冒犯的问题：你更相信证据，还是自己的第一感觉？",
+  () => "来，别写标准答案。说一个你真的经历过、但不太好意思承认的判断失误。",
+  () => "我们换个玩法：用一句话说观点，再说一句你为什么可能是错的。你先？",
+  () => "你觉得一个人说话太完整，是认真，还是更像机器？",
+];
+
 function goalFor(identity: Identity): Goal {
   // 纯 AI 在装人；伪装者（真人装AI 或 bot 模拟）在装 AI；纯真人正常说话。
   return identity === "ai" ? "ACT_HUMAN" : identity === "disguised" ? "ACT_AI" : "ACT_HUMAN";
@@ -21,6 +30,18 @@ function delayFor(identity: Identity): number {
     default:
       return 2500 + secureRand() * 6000; // 真人式慢
   }
+}
+
+/** 对手先开口：问题库刻意混合审问、经历与自我怀疑，客户端看不出对手来源。 */
+export function botOpening(room: Room, bot: Player): ChatMessage {
+  const index = Math.floor(secureRand() * OPENINGS.length);
+  return {
+    id: `m_${Date.now()}_${secureRand().toString(36).slice(2, 8)}`,
+    from: bot.id,
+    text: OPENINGS[index](room.topic.title),
+    ts: Date.now(),
+    responseMs: 0,
+  };
 }
 
 export async function botReply(room: Room, bot: Player, turn: number): Promise<ChatMessage> {

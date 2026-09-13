@@ -59,8 +59,8 @@ export default function ChatWindow({
             <span className="avatar h-12 w-12 text-lg" style={{ background: "linear-gradient(135deg,#9a6ae8,#c95aa0)" }}>
               {oppName.slice(0, 1)}
             </span>
-            <p className="text-sm text-[color:var(--muted)]">和「{oppName}」的第一句话，由你发起。</p>
-            <p className="text-xs text-[color:var(--muted)]">提示：破绽藏在标点、句式和回复速度里。</p>
+            <p className="text-sm text-[color:var(--meta)]">和「{oppName}」的第一句话，由你发起。</p>
+            <p className="text-xs text-[color:var(--meta)]">提示：破绽藏在标点、句式和回复速度里。</p>
           </div>
         )}
 
@@ -69,7 +69,7 @@ export default function ChatWindow({
             // 我方：右侧气泡
             <div key={m.id} className="fade-up flex justify-end">
               <div className="flex max-w-[76%] flex-col items-end gap-1">
-                <span className="text-[11px] text-[color:var(--muted)]">
+                <span className="text-[11px] text-[color:var(--meta)]">
                   {meName} · {fmtTime(m.ts)}
                 </span>
                 <div className="bubble-mine px-4 py-2.5 text-[15px] leading-7 whitespace-pre-wrap">{m.text}</div>
@@ -82,9 +82,13 @@ export default function ChatWindow({
                 {oppName.slice(0, 1)}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-[color:var(--muted)]">
+                <p className="text-xs text-[color:var(--meta)]">
                   <b className="text-[color:var(--ink-2)]">{oppName}</b> · {fmtTime(m.ts)}
-                  <span className="ml-2 tnum opacity-70">{(m.responseMs / 1000).toFixed(1)}s 后回复</span>
+                  {/* 耗时小于 0.1s 时不显示——"0.0s 后回复"既不自然也没有信息量，
+                      而回复快慢本身是判断身份的线索之一，不能给假数据 */}
+                  {m.responseMs >= 100 && (
+                    <span className="ml-2 tnum opacity-70">{(m.responseMs / 1000).toFixed(1)}s 后回复</span>
+                  )}
                 </p>
                 <p className="mt-1 text-[15px] leading-7 whitespace-pre-wrap text-[color:var(--ink)]">{m.text}</p>
               </div>
@@ -139,7 +143,7 @@ export default function ChatWindow({
             maxLength={500}
             disabled={disabled}
             placeholder={placeholder}
-            className="h-11 min-w-0 flex-1 rounded-full border border-[color:var(--line)] bg-[color:var(--bg)] px-4 text-[15px] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--zhihu)] focus:bg-white disabled:opacity-60"
+            className="h-11 min-w-0 flex-1 rounded-full border border-[color:var(--line)] bg-[color:var(--bg)] px-4 text-[15px] outline-none placeholder:text-[color:var(--meta)] focus:border-[color:var(--zhihu)] focus:bg-white disabled:opacity-60"
           />
           <button
             type="submit"

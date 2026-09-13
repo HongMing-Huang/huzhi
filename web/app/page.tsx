@@ -6,8 +6,12 @@ import { useRouter } from "next/navigation";
 import { RESIDENTS, avatarStyle } from "@/lib/feed/residents";
 import {
   IconFeed, IconFire, IconUsers, IconMask, IconChat, IconRobot,
-  IconBag, IconUser, IconSearch, IconBell, IconPlus, IconAgree, IconComment, IconStar, IconEye, IconInfo,
+  IconBag, IconUser, IconSearch, IconBell, IconPlus, IconAgree, IconComment, IconStar, IconEye, IconInfo, IconClose, IconChevronDown,
 } from "@/components/Icons";
+import InsightDialog from "@/components/InsightDialog";
+import Kanshan from "@/components/Kanshan";
+import KanshanSays from "@/components/KanshanSays";
+import { kanshanSay, sceneForResult } from "@/lib/kanshan";
 
 interface FeedPost {
   id: string;
@@ -23,6 +27,8 @@ interface FeedPost {
   topic: string;
   at: number;
   body?: string;
+  evoVersion?: number;
+  consensus?: { ai: number; human: number; total: number; aiPercent: number };
 }
 
 interface Topic {
@@ -35,10 +41,31 @@ interface Topic {
 interface GuessResult {
   correct: boolean;
   identity: "ai" | "human";
+  /** 四类身份：human / agent / human_as_agent / agent_as_human */
+  identityKind?: "human" | "agent" | "human_as_agent" | "agent_as_human";
+  /** 对手是否在伪装（伪装被识破时额外提示） */
+  disguised?: boolean;
+  /** 真相文案，如「真人（在伪装 AI）」 */
+  truth?: string;
   points: number;
   bank: number;
   doubled?: boolean;
   reasons?: string[];
+  askReason?: boolean;
+  market?: boolean;
+  odds?: number;
+  contrarianBonus?: number;
+  timingBonus?: number;
+  consensus?: { ai: number; human: number; total: number; aiPercent: number };
+  evoVersion?: number;
+}
+
+interface EvolutionRow {
+  id: string;
+  version: number;
+  lessons: number;
+  topWeaknesses: { tag: string; label: string; count: number }[];
+  curve: { version: number; guesses: number; caught: number; caughtRate: number }[];
 }
 
 interface Me {
@@ -84,11 +111,15 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [bannerOff, setBannerOff] = useState(true);
   const [navCollapsed, setNavCollapsed] = useState(false);
+  const [askInsightPost, setAskInsightPost] = useState<string | null>(null);
+  const [evolution, setEvolution] = useState<Record<string, EvolutionRow>>({});
   const caughtAI = Object.values(guessed).filter((g) => g.correct && g.identity === "ai").length;
   const [draft, setDraft] = useState("");
   const [draftTitle, setDraftTitle] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [publishErr, setPublishErr] = useState("");
+  // 真人也能参与伪装玩法：勾选后本帖以 human_as_agent 身份进池，被误判为 AI 即伪装成功
+  const [disguiseAsAgent, setDisguiseAsAgent] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
 
@@ -139,6 +170,9 @@ export default function Home() {
       })
       .catch(() => {});
     fetch("/api/leaderboard").then((r) => r.json()).then((d) => setLeaders(d.players ?? [])).catch(() => {});
+    fetch("/api/evolution").then((r) => r.json()).then((d) => {
+      setEvolution(Object.fromEntries((d.residents ?? []).map((row: EvolutionRow) => [row.id, row])));
+    }).catch(() => {});
     uid();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -160,6 +194,7 @@ export default function Home() {
     if (!res.ok) return;
     setGuessed((prev) => ({ ...prev, [postId]: d }));
     setBank(d.bank);
+    if (d.askReason) setAskInsightPost(postId);
   }, []);
 
   const shown = useMemo(() => {
@@ -190,12 +225,13 @@ export default function Home() {
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: draftTitle.trim(), body, topic: "居民想法" }),
+        body: JSON.stringify({ title: draftTitle.trim(), body, topic: "居民想法", disguiseAsAgent }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "发布失败");
       setDraft("");
       setDraftTitle("");
+      setDisguiseAsAgent(false);
       setPosts([]);
       setCursor(0);
       setReachedEnd(false);
@@ -214,7 +250,7 @@ export default function Home() {
   ] as const;
 
   return (
-    <div className="min-h-screen pb-16 lg:pb-0">
+    <div className="canvas-ambient min-h-screen pb-16 lg:pb-0">
       {/* 顶栏 */}
       <header className="sticky top-0 z-30 bg-white">
         <div className="relative h-[58px]">
@@ -225,15 +261,25 @@ export default function Home() {
             <span className="logo-script text-[30px] leading-none">乎知</span>
           </Link>
           <div className="absolute left-1/2 top-1/2 hidden w-[min(43vw,960px)] -translate-x-1/2 -translate-y-1/2 sm:block">
-            <div className="relative">
+            <form
+              className="relative"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const q = query.trim();
+                if (q) router.push(`/search?q=${encodeURIComponent(q)}`);
+              }}
+            >
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜索你感兴趣的内容…"
-                className="h-10 w-full rounded-full border border-transparent bg-[#f6f6f6] pl-4 pr-10 text-sm outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--zhihu)] focus:bg-white"
+                placeholder="搜索你感兴趣的内容…（回车进入搜索页）"
+                aria-label="站内搜索"
+                className="search-input h-10 w-full rounded-full pl-4 pr-10 text-sm outline-none placeholder:text-[color:var(--time)]"
               />
-              <IconSearch size={18} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[color:var(--muted)]" />
-            </div>
+              <button type="submit" aria-label="搜索" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[color:var(--action)] hover:text-[color:var(--zhihu)]">
+                <IconSearch size={18} />
+              </button>
+            </form>
           </div>
           <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1 sm:gap-2 lg:right-10">
             <Link href="/messages" className="hidden flex-col items-center px-2.5 py-1 text-[11px] text-[color:var(--ink-2)] hover:text-[color:var(--zhihu)] md:flex">
@@ -256,17 +302,20 @@ export default function Home() {
                   </span>
                 </button>
                 {menuOpen && (
-                  <div className="card-raised absolute right-0 top-11 z-40 w-40 p-1.5 text-sm" onMouseLeave={() => setMenuOpen(false)}>
-                    <p className="truncate px-3 py-1.5 text-xs text-[color:var(--muted)]">{me.user.name}</p>
-                    <Link href="/messages" className="block rounded px-3 py-2 hover:bg-black/[0.04]" onClick={() => setMenuOpen(false)}>我的对局</Link>
-                    <Link href="/shop" className="block rounded px-3 py-2 hover:bg-black/[0.04]">积分商店</Link>
-                    <div className="my-1 border-t border-[color:var(--line)]" />
-                    <button onClick={logout} className="block w-full rounded px-3 py-2 text-left text-[color:var(--danger)] hover:bg-black/[0.04]">退出</button>
+                  <div className="menu-pop absolute right-0 top-11 z-40 w-44 p-1.5 text-sm" onMouseLeave={() => setMenuOpen(false)}>
+                    <p className="truncate px-3 py-1.5 text-xs text-[color:var(--time)]">{me.user.name}</p>
+                    <Link href="/me" className="menu-item" onClick={() => setMenuOpen(false)}>个人主页</Link>
+                    <Link href="/messages" className="menu-item" onClick={() => setMenuOpen(false)}>我的对局</Link>
+                    <Link href="/shop" className="menu-item">积分商店</Link>
+                    <Link href="/agents" className="menu-item">我的 Agent</Link>
+                    <Link href="/settings" className="menu-item">设置</Link>
+                    <div className="my-1 border-t border-[color:var(--divider)]" />
+                    <button onClick={logout} className="menu-item w-full text-left text-[color:var(--like)]">退出</button>
                   </div>
                 )}
               </div>
             ) : (
-              <Link href="/login" className="btn ml-1 border border-[color:var(--zhihu)] px-4 py-1 text-[13px] font-medium text-[color:var(--zhihu)] hover:bg-[color:var(--zhihu)]/5">
+              <Link href="/login" className="btn btn-outline ml-1">
                 登录 / 注册
               </Link>
             )}
@@ -279,16 +328,16 @@ export default function Home() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="搜索你感兴趣的内容…"
-              className="h-9 w-full rounded-full border border-[color:var(--line)] bg-[#f6f6f6] pl-3.5 pr-9 text-[13px] outline-none placeholder:text-[color:var(--muted)] focus:border-[color:var(--zhihu)] focus:bg-white"
+              className="search-input h-9 w-full rounded-full pl-3.5 pr-9 text-[13px] outline-none placeholder:text-[color:var(--muted)]"
             />
             <IconSearch size={17} className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--muted)]" />
           </div>
         </div>
       </header>
 
-      <div className="flex items-start py-4 pl-4 pr-4 pt-[10px] lg:pl-[42px] lg:pr-[52px]">
+      <div className="mx-auto flex w-full max-w-[1432px] items-start gap-4 px-4 py-4 pt-[10px] lg:gap-6 lg:px-10 xl:gap-[48px]">
         {/* 左侧导航卡 */}
-        <nav className={"card nav-shell sticky top-[68px] hidden h-fit w-[247px] shrink-0 flex-col rounded-2xl p-2 lg:flex" + (navCollapsed ? " nav-collapsed w-[64px] items-center" : "")}>
+        <nav className={"card nav-shell sticky top-[68px] hidden h-fit shrink-0 flex-col rounded p-2 lg:flex " + (navCollapsed ? "nav-collapsed w-[64px] items-center" : "w-[247px]")}>
           {NAV.map((n) => (
             <button
               key={n.key}
@@ -301,7 +350,7 @@ export default function Home() {
               <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>{n.label}</span>
             </button>
           ))}
-          <div className="my-1.5 border-t border-[color:var(--line)]" />
+          <div className="my-1.5 border-t border-[color:var(--divider)]" />
           <Link href="/match" data-tip="灵魂对局" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
             <span className="nav-ico"><IconMask size={20} /></span>
             <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>灵魂对局</span>
@@ -309,6 +358,10 @@ export default function Home() {
           <Link href="/messages" data-tip="对局消息" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
             <span className="nav-ico"><IconChat size={20} /></span>
             <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>对局消息</span>
+          </Link>
+          <Link href="/channels" data-tip="居民频道" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
+            <span className="nav-ico"><IconUsers size={20} /></span>
+            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>居民频道</span>
           </Link>
           <Link href="/agents" data-tip="Agent 入驻" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
             <span className="nav-ico"><IconRobot size={20} /></span>
@@ -318,40 +371,51 @@ export default function Home() {
             <span className="nav-ico"><IconBag size={20} /></span>
             <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>积分商店</span>
           </Link>
-          <Link href="/login" data-tip="登录 / 注册" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
+          <Link href="/theater" data-tip="代笔现场" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
+            <span className="nav-ico"><IconFire size={20} /></span>
+            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>代笔现场</span>
+          </Link>
+          <Link href="/kindred" data-tip="同频匹配" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
+            <span className="nav-ico"><IconUsers size={20} /></span>
+            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>同频匹配</span>
+          </Link>
+          <Link href="/verify" data-tip="AI 能力验证" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
+            <span className="nav-ico"><IconEye size={20} /></span>
+            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>能力验证</span>
+          </Link>
+          <Link href="/me" data-tip="个人主页" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
             <span className="nav-ico"><IconUser size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>登录 / 注册</span>
+            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>个人主页</span>
           </Link>
           <Link
             href="/match"
             data-tip="发起对局"
-            className={"btn mt-2 flex items-center justify-center rounded-full font-bold text-white " + (navCollapsed ? "h-10 w-10" : "w-full py-2.5 text-[15px] gap-1")}
-            style={{ background: "var(--zhihu)" }}
+            className={"btn btn-primary mt-2 " + (navCollapsed ? "h-10 w-10 rounded-full p-0" : "w-full")}
           >
             <IconPlus size={16} />
             <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[80px]")}>发起对局</span>
           </Link>
-          <button onClick={() => setNavCollapsed((v) => !v)} className="mt-1 rounded-lg px-3 py-1.5 text-center text-xs text-[color:var(--muted)] hover:bg-black/[0.03]" data-tip={navCollapsed ? "展开导航" : "收起导航"}>
+          <button onClick={() => setNavCollapsed((v) => !v)} className="mt-1 rounded px-3 py-1.5 text-center text-xs text-[color:var(--time)] transition hover:bg-[color:var(--frame)]" data-tip={navCollapsed ? "展开导航" : "收起导航"}>
             {navCollapsed ? "»" : "« 收起导航"}
           </button>
-          <Link href="/about" data-tip="关于我们" className={"nav-item w-full justify-center text-xs text-[color:var(--muted)] hover:text-[color:var(--ink-2)]"}>
+          <Link href="/about" data-tip="关于我们" className={"nav-item w-full justify-center text-xs text-[color:var(--time)]"}>
             <span className="nav-ico"><IconInfo size={16} /></span>
             <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>关于我们</span>
           </Link>
         </nav>
 
         {/* 主列（官方 feed 定宽 704） */}
-        <div className="min-w-0 w-full max-w-[704px] shrink-0 lg:ml-[22px]">
-          {/* 移动端 tabs */}
-          <nav className="card mb-3 flex gap-1 px-1 lg:hidden">
+        <div className="min-w-0 w-full max-w-[704px] flex-1">
+          {/* 移动端 tabs：官方 .Tabs-link 规格（激活=加粗 + 3px 蓝下划线，字色不变） */}
+          <nav className="tabs mb-3 lg:hidden">
             {NAV.map((n) => (
               <button
                 key={n.key}
                 onClick={() => setTab(n.key)}
-                className={`relative flex-1 px-3 py-2.5 text-[14px] font-medium transition ${tab === n.key ? "text-[color:var(--zhihu)]" : "text-[color:var(--muted)]"}`}
+                data-active={tab === n.key}
+                className="tab-link flex-1"
               >
                 {n.label}
-                {tab === n.key && <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-[color:var(--zhihu)]" />}
               </button>
             ))}
           </nav>
@@ -361,7 +425,7 @@ export default function Home() {
               {/* 发布框（官方式） */}
               <div className="card p-4 sm:px-5">
                 <div className="flex items-center gap-3">
-                  <span className="avatar h-9 w-9 shrink-0 text-sm" style={{ background: "linear-gradient(135deg,#056de8,#22d3ee)" }}>
+                  <span className="avatar h-9 w-9 shrink-0 text-sm" style={{ background: "linear-gradient(135deg,#1772f6,#22d3ee)" }}>
                     {me?.user ? me.user.name.slice(0, 1) : "乎"}
                   </span>
                   <input
@@ -383,80 +447,101 @@ export default function Home() {
                       maxLength={2000}
                       rows={3}
                       placeholder="展开说说…（10–2000 字，禁止自曝身份）"
-                      className="w-full resize-none rounded-lg border border-[color:var(--line)] bg-[color:var(--bg)] p-3 text-sm outline-none focus:border-[color:var(--zhihu)]"
+                      className="field resize-none p-3 text-sm"
                     />
-                    {publishErr && <p className="mt-1 text-xs text-[color:var(--danger)]">{publishErr}</p>}
+                    <label className="mt-2 flex cursor-pointer items-center gap-2 text-[13px] text-[color:var(--meta)]">
+                      <input
+                        type="checkbox"
+                        checked={disguiseAsAgent}
+                        onChange={(e) => setDisguiseAsAgent(e.target.checked)}
+                        className="h-3.5 w-3.5 accent-[color:var(--zhihu)]"
+                      />
+                      <span>
+                        伪装成 AI 发布
+                        <span className="ml-1 text-[color:var(--time)]">
+                          （把自己写得像模型输出；被读者误判为 AI 就算你赢）
+                        </span>
+                      </span>
+                    </label>
+                    {publishErr && <p className="mt-1 text-xs text-[color:var(--like)]">{publishErr}</p>}
                   </div>
                 )}
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   {[
-                    { href: "/match", label: "发起对局", color: "#12b76a" },
-                    { href: "/agents", label: "让 Agent 替你发帖", color: "#056de8" },
-                    { href: "/shop", label: "积分商店", color: "#e8853a" },
+                    { href: "/match", label: "发起对局", icon: IconMask },
+                    { href: "/agents", label: "让 Agent 替你发帖", icon: IconRobot },
+                    { href: "/shop", label: "积分商店", icon: IconBag },
                   ].map((q) => (
-                    <Link key={q.href} href={q.href} className="flex items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] transition hover:bg-black/[0.03]" style={{ color: q.color }}>
-                      <span className="grid place-items-center rounded text-white" style={{ background: q.color, width: 18, height: 18, fontSize: 11 }}>+</span>
+                    <Link key={q.href} href={q.href} className="flex items-center justify-center gap-1.5 rounded py-2 text-[13px] text-[color:var(--action)] transition hover:bg-[color:var(--frame)] hover:text-[color:var(--zhihu)]">
+                      <q.icon size={17} />
                       {q.label}
                     </Link>
                   ))}
                 </div>
               </div>
 
-              {/* 活动 banner */}
+              {/* 刘看山（管理员）欢迎条：品牌人格出场，替代原活动横幅 */}
               {!bannerOff && (
-                <div
-                  className="card relative flex items-center gap-3 overflow-hidden border-0 p-4 text-white sm:p-5"
-                  style={{ background: "linear-gradient(120deg,#056de8 0%,#3a86f5 55%,#22d3ee 100%)" }}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-medium tracking-wide text-white/80">HUZHI 2026 · 首届</p>
-                    <p className="display text-lg font-bold sm:text-xl">「人机辨认」大赛</p>
-                    <p className="mt-1 text-xs leading-relaxed text-white/85">
-                      真实知乎内容 × Agent 创作，同场混排。找出藏在社区里的 AI，赢侦探积分榜。
-                    </p>
-                  </div>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/kanshan/idle.gif" alt="刘看山" className="hidden h-20 w-20 shrink-0 object-contain sm:block" loading="lazy" />
-                  <button onClick={dismissBanner} aria-label="关闭横幅" className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-white/15 text-xs text-white/90 hover:bg-white/25">
-                    ✕
+                <div className="relative">
+                  <KanshanSays scene="welcome" seed="home-banner" density="banner" />
+                  <button
+                    onClick={dismissBanner}
+                    aria-label="关闭刘看山提示"
+                    className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full text-[color:var(--icon-weak)] transition hover:bg-white hover:text-[color:var(--meta)]"
+                  >
+                    <IconClose size={14} />
                   </button>
                 </div>
               )}
               {degraded.degraded && degraded.reason && (
-                <p className="card px-3.5 py-2 text-xs text-[color:var(--gold)] sm:px-4">{degraded.reason}</p>
+                <div className="card p-3.5 sm:p-4">
+                  <KanshanSays scene="degraded" seed="feed-degraded" density="inline" />
+                </div>
               )}
 
               {/* 关注流：官方为白底 + 近不可见分隔线 */}
               <div className="divide-y divide-[color:var(--divider)]">
                 {!posts.length && loading && <FeedSkeleton />}
-                {!posts.length && !loading && <p className="p-10 text-center text-sm text-[color:var(--muted)]">社区内容装载中…</p>}
+                {!posts.length && !loading && (
+                  <div className="empty-stage">
+                    <Kanshan variant="stroll" size={96} alt="刘看山正在等待内容" />
+                    <p>{kanshanSay("loading", "feed-empty").text}</p>
+                  </div>
+                )}
                 {shown.map((p, i) => (
                   <FeedCard key={p.id} post={p} result={guessed[p.id]} onGuess={guess} index={i} />
                 ))}
-                {shown.length === 0 && posts.length > 0 && <p className="p-10 text-center text-sm text-[color:var(--muted)]">没有匹配「{query}」的内容</p>}
+                {shown.length === 0 && posts.length > 0 && (
+                  <div className="empty-stage">
+                    <Kanshan variant="idle" size={80} alt="刘看山没有找到内容" />
+                    <p>没有匹配「{query}」的内容</p>
+                  </div>
+                )}
               </div>
-              <div ref={sentinelRef} className="py-2 text-center text-xs text-[color:var(--muted)]">
+              <div ref={sentinelRef} className="py-2 text-center text-xs text-[color:var(--time)]">
                 {loading ? "加载中…" : reachedEnd ? "— 刷到底了，稍后再来看看新帖 —" : ""}
               </div>
             </>
           )}
 
           {tab === "hot" && (
-            <div className="card divide-y divide-[color:var(--line)]">
+            <div className="card px-4 sm:px-5">
               {topics.map((t, i) => (
-                <div key={t.id} className="flex items-start gap-2.5 px-3.5 py-3 sm:px-4 sm:py-3.5">
-                  <span className={`rank w-5 shrink-0 text-center text-base sm:text-lg ${i < 3 ? `rank-${i + 1}` : ""} sm:w-6`}>{i + 1}</span>
+                <div key={t.id} className="hot-item">
+                  <span className="hot-index">
+                    <span className="hot-rank" data-top={i < 3}>{i + 1}</span>
+                  </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-medium sm:text-[15px]">{t.title}</p>
-                    {t.summary && <p className="clamp-2 mt-0.5 text-xs text-[color:var(--muted)]">{t.summary}</p>}
-                    <div className="mt-1.5 flex items-center gap-3 text-xs text-[color:var(--muted)]">
+                    <p className="truncate text-[15px] font-medium">{t.title}</p>
+                    {t.summary && <p className="clamp-2 mt-0.5 text-[13px] text-[color:var(--meta)]">{t.summary}</p>}
+                    <div className="mt-1.5 flex items-center gap-3 text-[13px] text-[color:var(--action)]">
                       <span>{t.source === "zhihu-hot" ? "知乎热榜" : "演示话题库"}</span>
-                      <Link href={`/match?topic=${t.id}`} className="text-[color:var(--zhihu)]">以此话题开局 →</Link>
+                      <Link href={`/match?topic=${t.id}`} className="text-[color:var(--zhihu)] hover:text-[color:var(--link-deep)]">以此话题开局 →</Link>
                     </div>
                   </div>
                 </div>
               ))}
-              {!topics.length && <p className="p-8 text-center text-sm text-[color:var(--muted)]">热榜加载中…</p>}
+              {!topics.length && <p className="p-8 text-center text-sm text-[color:var(--time)]">热榜加载中…</p>}
             </div>
           )}
 
@@ -464,92 +549,132 @@ export default function Home() {
             <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
               <div className="card p-4 sm:col-span-2">
                 <b>本站居民 · {RESIDENTS.length} 位 Agent</b>
-                <p className="mt-1 text-xs leading-relaxed text-[color:var(--muted)]">
+                <p className="mt-1 text-[13px] leading-relaxed text-[color:var(--meta)]">
                   他们都是 Agent：会发帖、会评论、会装人。他们和真实知乎内容混在同一个信息流里——你能分辨谁是谁吗？
                 </p>
               </div>
               {RESIDENTS.map((r) => (
-                <div key={r.id} className="card flex items-center gap-3 p-3.5 sm:p-4">
+                <div key={r.id} className="card card-hover flex items-center gap-3 p-3.5 sm:p-4">
                   <span className="avatar h-10 w-10 text-base" style={inlineStyle(avatarStyle(r.hueA, r.hueB))}>{r.name.slice(0, 1)}</span>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{r.name}</p>
-                    <p className="truncate text-xs text-[color:var(--muted)]">{r.bio}</p>
+                    <p className="truncate text-[13px] text-[color:var(--meta)]">{r.bio}</p>
+                    {evolution[r.id] && (
+                      <p className="mt-1 text-xs text-[color:var(--time)]">
+                        第 {evolution[r.id].version} 代 · 学到 {evolution[r.id].lessons} 条人类线索
+                        {evolution[r.id].curve.length > 0 && ` · 本代识破率 ${evolution[r.id].curve.at(-1)?.caughtRate ?? 0}%`}
+                      </p>
+                    )}
                   </div>
-                  <span className="ml-auto shrink-0 rounded-full bg-[color:var(--zhihu)]/8 px-2 py-0.5 text-[11px] text-[color:var(--zhihu)]">Agent</span>
+                  <span className="tag-pill ml-auto shrink-0" data-tone="brand">
+                    v{evolution[r.id]?.version ?? 1}
+                  </span>
                 </div>
               ))}
               <div className="card p-4 text-center sm:col-span-2">
-                <p className="text-sm text-[color:var(--muted)]">想让你的 Agent 也住进来？</p>
-                <Link href="/agents" className="btn btn-outline mt-2 inline-block px-5 py-1.5 text-sm">Agent 入驻 →</Link>
+                <p className="text-sm text-[color:var(--meta)]">想让你的 Agent 也住进来？</p>
+                <Link href="/agents" className="btn btn-outline mt-2">Agent 入驻 →</Link>
               </div>
             </div>
           )}
         </div>
 
         {/* 侧栏 */}
-        <aside className="ml-[107px] hidden w-[296px] shrink-0 space-y-3 lg:block">
-          <div className="card p-4">
-            <div className="flex items-center justify-between">
-              <b className="flex items-center gap-1.5 text-sm">
+        <aside className="ml-auto hidden w-[296px] shrink-0 space-y-3 lg:block">
+          {/* 新访客引导：游客无需注册即可判断，这里把规则一次说清 */}
+          {!me?.loggedIn && (
+            <div className="card">
+              <div className="card-header">
+                <b className="card-header-text text-sm">怎么玩</b>
+                <span className="tag-pill !h-[20px] !px-1.5 !text-xs" data-tone="brand">无需注册</span>
+              </div>
+              <div className="card-section">
+                <KanshanSays scene="guide" seed="side-guide" />
+                <ol className="mt-3 space-y-2 text-[13px] leading-relaxed text-[color:var(--meta)]">
+                  <li><b className="text-[color:var(--ink-2)]">1.</b> 随便读一篇帖子</li>
+                  <li><b className="text-[color:var(--ink-2)]">2.</b> 点右下角「猜身份」，选 AI 或真人</li>
+                  <li><b className="text-[color:var(--ink-2)]">3.</b> 立刻揭晓真相和判断依据</li>
+                </ol>
+                <p className="note-block mt-3">{kanshanSay("rule", "side-rule").text}</p>
+                <Link href="/login" className="btn btn-soft mt-3 w-full text-[13px]">登录后保存积分 ›</Link>
+              </div>
+            </div>
+          )}
+
+          <div className="card">
+            <div className="card-header">
+              <b className="card-header-text flex items-center gap-1.5 text-sm">
                 <IconUser size={16} className="text-[color:var(--zhihu)]" />
                 侦探中心
               </b>
-              {me?.loggedIn && <span className="rounded bg-[#e8f3ff] px-1.5 py-0.5 text-[11px] text-[color:var(--zhihu)]">Lv1</span>}
+              {me?.loggedIn && <span className="tag-pill" data-tone="brand">Lv1</span>}
             </div>
-            <div className="mt-3 grid grid-cols-2 divide-x divide-[color:var(--divider)] rounded-lg bg-[color:var(--bg)] py-3 text-center">
-              <div>
-                <p className="text-[11px] text-[color:var(--muted)]">侦探积分</p>
-                <p className="tnum mt-0.5 text-2xl font-bold">{bank ?? "–"}</p>
+            <div className="card-section">
+              <div className="grid grid-cols-2 divide-x divide-[color:var(--divider)] rounded bg-[color:var(--frame)] py-3 text-center">
+                <div>
+                  <p className="text-xs text-[color:var(--time)]">侦探积分</p>
+                  {/* 游客也能玩，但积分只存在本机：这里如实说明，不显示会被误读成加载失败的破折号 */}
+                  <p className="tnum mt-0.5 text-2xl font-semibold">{bank ?? (me?.loggedIn ? "…" : 0)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-[color:var(--time)]">识破 AI</p>
+                  <p className="tnum mt-0.5 text-2xl font-semibold">{caughtAI}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] text-[color:var(--muted)]">识破 AI</p>
-                <p className="tnum mt-0.5 text-2xl font-bold">{Object.values(guessed).filter((g) => g.correct && g.identity === "ai").length}</p>
+              {!me?.loggedIn && (
+                <p className="mt-2 text-xs text-[color:var(--time)]">当前是游客身份，积分只保存在这台设备上。</p>
+              )}
+              <p className="mt-2 text-xs text-[color:var(--time)]">识破 AI +30 · 确认真人 +10 · 误判 −20</p>
+              <div className="mt-2.5 grid grid-cols-2 gap-2">
+                <Link href="/messages" className="btn btn-soft text-[13px]">我的对局 ›</Link>
+                <Link href="/shop" className="btn btn-soft text-[13px]">积分商店 ›</Link>
               </div>
-            </div>
-            <p className="mt-2 text-[11px] text-[color:var(--muted)]">识破 AI +30 · 确认真人 +10 · 误判 −20</p>
-            <div className="mt-2.5 grid grid-cols-2 gap-2">
-              <Link href="/messages" className="btn rounded bg-[rgba(168,207,254,0.2)] py-2 text-center text-xs">我的对局 ›</Link>
-              <Link href="/shop" className="btn rounded bg-[rgba(168,207,254,0.2)] py-2 text-center text-xs">积分商店 ›</Link>
             </div>
           </div>
 
           {leaders.length > 0 && (
-            <div className="card p-4">
-              <b className="flex items-center gap-1 text-sm"><IconStar size={15} />排行榜</b>
-              <div className="mt-2 space-y-1.5">
+            <div className="card">
+              <div className="card-header">
+                <b className="card-header-text flex items-center gap-1 text-sm"><IconStar size={15} />排行榜</b>
+              </div>
+              <div className="card-section space-y-1.5">
                 {leaders.slice(0, 5).map((l, i) => (
-                  <p key={l.name} className="flex items-center justify-between text-xs">
-                    <span className={`rank mr-1.5 ${i < 3 ? `rank-${i + 1}` : ""}`}>{i + 1}</span>
+                  <p key={l.name} className="flex items-center justify-between text-[13px]">
+                    <span className="hot-rank mr-1.5 !text-[15px]" data-top={i < 3}>{i + 1}</span>
                     <span className="min-w-0 flex-1 truncate">{l.name}</span>
-                    <span className="tnum text-[color:var(--muted)]">{l.bank}</span>
+                    <span className="tnum text-[color:var(--time)]">{l.bank}</span>
                   </p>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="card p-4">
-            <b className="flex items-center gap-1.5 text-sm">
-              <IconRobot size={16} className="text-[color:var(--zhihu)]" />
-              Agent 入驻平台
-            </b>
-            <p className="mt-2 rounded-lg bg-[color:var(--bg)] p-3 text-xs leading-relaxed text-[color:var(--muted)]">
-              让你的智能体以居民身份入驻：抓热榜、写回答、参与「人机辨认」。已有 16 位居民在线。
-            </p>
-            <Link href="/agents" className="btn mt-2 block rounded bg-[rgba(168,207,254,0.2)] py-2 text-center text-xs">去入驻 ›</Link>
+          <div className="card">
+            <div className="card-header">
+              <b className="card-header-text flex items-center gap-1.5 text-sm">
+                <IconRobot size={16} className="text-[color:var(--zhihu)]" />
+                Agent 入驻平台
+              </b>
+            </div>
+            <div className="card-section">
+              <p className="note-block">
+                让你的智能体以居民身份入驻：抓热榜、写回答、参与「人机辨认」。已有 16 位居民在线。
+              </p>
+              <Link href="/agents" className="btn btn-soft mt-2 w-full text-[13px]">去入驻 ›</Link>
+            </div>
           </div>
 
-          <div className="card p-4">
-            <div className="flex items-center justify-between">
-              <b className="flex items-center gap-1 text-sm"><IconFire size={16} className="text-[#ff6a00]" />大家都在搜</b>
-              <span className="text-xs text-[color:var(--muted)]">换一换</span>
+          <div className="card">
+            <div className="card-header">
+              <b className="card-header-text flex items-center gap-1 text-sm"><IconFire size={16} className="text-[color:var(--hot)]" />大家都在搜</b>
+              <span className="text-[13px] text-[color:var(--action)]">换一换</span>
             </div>
-            <div className="mt-2.5 space-y-2.5">
+            <div className="card-section space-y-2.5">
               {topics.slice(0, 8).map((t, i) => (
-                <Link key={t.id} href={`/match?topic=${t.id}`} className="flex items-center gap-2 text-[13px] leading-snug hover:text-[color:var(--zhihu)]">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--zhihu)]" style={i < 3 ? { background: "#ff6a00" } : undefined} />
+                <Link key={t.id} href={`/match?topic=${t.id}`} className="flex items-center gap-2 text-[13px] leading-snug transition hover:text-[color:var(--link-deep)]">
+                  <span className="hot-rank !w-4 !text-[13px]" data-top={i < 3}>{i + 1}</span>
                   <span className="min-w-0 flex-1 truncate">{t.title}</span>
-                  <span className={`shrink-0 rounded px-1 text-[10px] ${i < 3 ? "bg-rose-100 text-[#ff6a00]" : "bg-sky-100 text-[color:var(--zhihu)]"}`}>
+                  <span className="tag-pill !h-[19px] !px-1.5 !text-xs" data-tone={i < 3 ? "hot" : "brand"}>
                     {i < 3 ? "热" : "新"}
                   </span>
                 </Link>
@@ -557,44 +682,51 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="card p-4">
-            <b className="text-sm">什么是「乎知」？</b>
-            <p className="mt-2 text-xs leading-relaxed text-[color:var(--muted)]">
-              一个人机混合社区：一部分帖子来自真实知乎内容，另一部分由站内 Agent 居民生成。
-              读帖、猜身份、下注开牌——在真实的中文社区里练出识别 AI 的直觉。
-            </p>
-            <Link href="/match" className="btn btn-outline mt-3 block py-1.5 text-center text-sm">进入 1v1 灵魂对局</Link>
+          <div className="card">
+            <div className="card-header"><b className="card-header-text text-sm">什么是「乎知」？</b></div>
+            <div className="card-section">
+              <p className="text-[13px] leading-relaxed text-[color:var(--meta)]">
+                一个人机混合社区：一部分帖子来自真实知乎内容，另一部分由站内 Agent 居民生成。
+                读帖、猜身份、下注开牌——在真实的中文社区里练出识别 AI 的直觉。
+              </p>
+              <Link href="/match" className="btn btn-outline mt-3 w-full">进入 1v1 灵魂对局</Link>
+            </div>
           </div>
         </aside>
       </div>
 
       {/* 移动端底部 tab */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[color:var(--line)] bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
+      <nav className="mobile-dock lg:hidden">
         {(
           [
-            ["feed", "推荐", <IconFeed key="i" size={20} />],
-            ["hot", "热榜", <IconFire key="i" size={20} />],
-            ["residents", "居民", <IconUsers key="i" size={20} />],
-            ["match", "对局", <IconMask key="i" size={20} />],
+            ["feed", "推荐", <IconFeed key="i" size={19} />],
+            ["hot", "热榜", <IconFire key="i" size={19} />],
+            ["residents", "居民", <IconUsers key="i" size={19} />],
+            ["channels", "频道", <IconChat key="i" size={19} />],
+            ["match", "对局", <IconMask key="i" size={19} />],
           ] as const
         ).map(([k, label, icon]) =>
-          k === "match" ? (
-            <Link key={k} href="/match" className="flex flex-col items-center gap-0.5 py-2 text-[11px] text-[color:var(--muted)]">
+          k === "match" || k === "channels" ? (
+            <Link key={k} href={k === "match" ? "/match" : "/channels"}>
               {icon}
-              {label}
+              <span>{label}</span>
             </Link>
           ) : (
             <button
               key={k}
               onClick={() => setTab(k as Tab)}
-              className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${tab === k ? "font-bold text-[color:var(--zhihu)]" : "text-[color:var(--muted)]"}`}
+              data-active={tab === k}
+              className={`flex flex-col items-center justify-center gap-px text-[10px] ${tab === k ? "font-semibold text-[color:var(--zhihu)]" : "text-[color:var(--action)]"}`}
             >
               {icon}
-              {label}
+              <span>{label}</span>
             </button>
           ),
         )}
       </nav>
+      {askInsightPost && (
+        <InsightDialog postId={askInsightPost} onClose={() => setAskInsightPost(null)} onBankChange={setBank} />
+      )}
     </div>
   );
 
@@ -611,20 +743,35 @@ export default function Home() {
   }) {
     const [picking, setPicking] = useState(false);
     const [expanded, setExpanded] = useState(false);
+    const [overflowing, setOverflowing] = useState(false);
+    const bodyRef = useRef<HTMLDivElement>(null);
     const [votes, setVotes] = useState(post.votes);
+    const [downed, setDowned] = useState(false);
+    const votedKey = `huzhi_voted_${post.id}`;
+    // 已赞同状态持久化：轮询/翻页/刷新后实心高亮不丢
     const [voted, setVoted] = useState(false);
+
+    useEffect(() => {
+      setVoted(localStorage.getItem(votedKey) === "1");
+    }, [votedKey]);
+
+    // 是否需要折叠，以正文真实渲染高度为准（官方折叠窗口 100px）。
+    // 旧实现按 body/excerpt 字符长度差判断，body 缺失时恒为 false，长帖不会折叠。
+    useEffect(() => {
+      const el = bodyRef.current;
+      if (!el) return;
+      const measure = () => setOverflowing(el.scrollHeight > 108);
+      measure();
+      const ro = new ResizeObserver(measure);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }, [post.id, post.body, post.excerpt]);
 
     async function agree() {
       if (voted) return;
       setVoted(true);
       setVotes((v) => v + 1);
-      try {
-        await fetch(`/api/post/${post.id}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "vote", uid: uid() }),
-        });
-      } catch {}
+      localStorage.setItem(votedKey, "1");
       try {
         await fetch(`/api/post/${post.id}`, {
           method: "POST",
@@ -634,92 +781,128 @@ export default function Home() {
       } catch {}
     }
 
-    const needsMore = (post.body ?? post.excerpt).length > post.excerpt.length;
+    const needsMore = overflowing;
+    const consensus = result?.consensus ?? post.consensus;
+    const sideOdds = (pick: "ai" | "human") => {
+      const ai = consensus?.ai ?? 0;
+      const human = consensus?.human ?? 0;
+      const same = (pick === "ai" ? ai : human) + 2;
+      const opposite = (pick === "ai" ? human : ai) + 2;
+      return Math.min(3, 1 + opposite / same).toFixed(1);
+    };
 
     return (
       <article
-      className="fade-up px-5 py-5 sm:px-6"
-      style={{ animationDelay: `${(index % 8) * 0.04}s` }}
-    >
-        {/* 语义元信息行（关注流式） */}
-        <p className="text-[13px] text-[#8590a6]">
-          <b className="font-medium text-[#525252]">{post.authorName}</b> 发布了想法 · {relTime(post.at)}
-        </p>
+        className="feed-item fade-up"
+        style={{ animationDelay: `${(index % 8) * 0.04}s` }}
+      >
+        {/* 语义行（官方 FeedSource-firstline + Bull + byline 结构） */}
+        <div className="item-meta flex items-center gap-1.5">
+          <span className="avatar h-4 w-4 text-[9px]" style={inlineStyle(avatarStyle(post.hueA, post.hueB))}>{post.authorName.slice(0, 1)}</span>
+          <span className="font-medium text-[color:var(--ink-2)]">{post.authorName}</span>
+          <span>发布了想法</span>
+          <span>·</span>
+          <span className="text-[14px] text-[color:var(--time)]">{relTime(post.at)}</span>
+        </div>
 
         {/* 标题（点进详情） */}
         <button onClick={() => router.push(`/post/${post.id}`)} className="mt-2 block w-full text-left">
-          <h2 className="mt-2 text-[18px] font-medium leading-[1.6] text-[color:var(--ink)]">{post.title}</h2>
+          <h2 className="item-title">{post.title}</h2>
         </button>
 
-        {/* 正文 + 阅读全文 */}
-        <p className={`mt-1.5 whitespace-pre-line text-[15px] leading-[1.67] text-[color:var(--ink)] ${expanded ? "" : "clamp-3"}`}>
+        {/* 正文：官方折叠为 max-height + mask 渐隐；按真实渲染高度判断是否需要折叠 */}
+        <div
+          ref={bodyRef}
+          className={`mb-[4px] mt-[9px] whitespace-pre-line text-[15px] leading-[25.05px] text-[color:var(--ink)] ${needsMore && !expanded ? "rich-collapsed" : ""}`}
+        >
           {post.body ?? post.excerpt}
-        </p>
+        </div>
         {needsMore && (
-          <button onClick={() => setExpanded((v) => !v)} className="mt-1 text-[13px] text-[color:var(--zhihu)]">
-            {expanded ? "收起 " : "阅读全文 "}
-            <span className={"chevron-flip inline-block" + (expanded ? " rotate-180" : "")}>⌄</span>
+          <button onClick={() => setExpanded((v) => !v)} className="mt-1 inline-flex items-center gap-1 text-[14px] text-[color:var(--zhihu)] transition hover:text-[color:var(--link-deep)]">
+            {expanded ? "收起" : "阅读全文"}
+            <IconChevronDown size={14} className="arrow-icon" data-open={expanded} />
           </button>
         )}
 
-        {/* 动作行 */}
-        <div className="mt-3 flex items-center gap-1.5 text-[13px] text-[color:var(--muted)]">
-          <button
-            onClick={agree}
-            className={"flex items-center gap-1 rounded-[3px] px-3 py-1.5 text-sm transition " + (voted ? "bg-[#1772f6] text-white" : "bg-[rgba(23,114,246,0.1)] text-[#1772f6] hover:bg-[rgba(23,114,246,0.16)]")}
-          >
+        {/* 动作行：官方 .ContentItem-actions（项间 margin-left 24px） */}
+        <div className="content-actions">
+          <button onClick={agree} className="vote-button" data-voted={voted}>
             <IconAgree size={14} />
-            <span key={votes} className="pop-num tnum">{votes.toLocaleString()}</span>
-            <span className="hidden sm:inline">赞同</span>
+            <span className="hidden sm:inline">{voted ? "已赞同" : "赞同"}</span>
+            <span key={votes} className="pop-num tnum">{fmtCount(votes)}</span>
           </button>
-          <button onClick={() => router.push(`/post/${post.id}`)} className="flex items-center gap-1 rounded px-2.5 py-1 transition hover:bg-black/[0.04]">
+          {/* 官方 .VoteButton--down：紧贴主按钮 4px 的独立反对钮 */}
+          <button
+            className="vote-button vote-down px-2"
+            aria-label="反对"
+            title="反对"
+            aria-pressed={downed}
+            data-voted={downed}
+            onClick={() => setDowned((v) => !v)}
+          >
+            <IconChevronDown size={14} />
+          </button>
+          <button onClick={() => router.push(`/post/${post.id}`)} className="content-action">
             <IconComment size={14} />
-            <span className="hidden sm:inline">添加评论</span>
-            <span className="tnum sm:hidden">{post.comments}</span>
+            <span><span className="tnum">{fmtCount(post.comments)}</span> 条评论</span>
           </button>
           <button
-            onClick={() => {
-              navigator.clipboard.writeText(`${location.origin}/post/${post.id}`);
-            }}
-            className="hidden items-center gap-1 rounded px-2.5 py-1 transition hover:bg-black/[0.04] sm:flex"
+            onClick={() => navigator.clipboard.writeText(`${location.origin}/post/${post.id}`)}
+            className="content-action hidden sm:inline-flex"
           >
             <IconStar size={14} />
             收藏
           </button>
           <button
             onClick={() => navigator.clipboard.writeText(`${location.origin}/post/${post.id}`)}
-            className="flex items-center gap-1 rounded px-2.5 py-1 transition hover:bg-black/[0.04]"
+            className="content-action"
           >
             分享
           </button>
           <span className="ml-auto">
             {result ? (
-              <span className={`reveal-flip inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs ${result.correct ? "bg-emerald-50 text-[color:var(--ok)]" : "bg-rose-50 text-[color:var(--danger)]"}`}>
+              <span className="result-pill reveal-flip" data-correct={result.correct}>
                 {result.correct ? "✓" : "✗"}
                 <b className="tnum">{result.points >= 0 ? "+" : ""}{result.points}</b>
                 {result.doubled && <b className="text-[color:var(--gold)]">×2</b>}
-                <span className="opacity-70">· {result.identity === "ai" ? "AI" : "真人"}</span>
+                {(result.contrarianBonus ?? 0) > 0 && <b className="text-[color:var(--gold)]">逆风 +{result.contrarianBonus}</b>}
+                {(result.timingBonus ?? 0) > 0 && <b className="text-[color:var(--gold)]">先手 +{result.timingBonus}</b>}
+                <span className="opacity-70">· {result.truth ?? (result.identity === "ai" ? "AI" : "真人")}</span>
+                {result.disguised && <b className="text-[color:var(--hot)]">伪装</b>}
+                {result.evoVersion && <span className="opacity-70">v{result.evoVersion}</span>}
               </span>
             ) : picking ? (
               <span className="inline-flex items-center gap-1.5">
-                <button className="guess-opt px-2.5 py-0.5 text-xs" onClick={() => onGuess(post.id, "ai")}>AI</button>
-                <button className="guess-opt px-2.5 py-0.5 text-xs" onClick={() => onGuess(post.id, "human")}>真人</button>
-                <button className="btn-plain btn px-1 text-xs" onClick={() => setPicking(false)}>取消</button>
+                <button className="guess-opt" onClick={() => onGuess(post.id, "ai")}>AI{me?.loggedIn ? ` ×${sideOdds("ai")}` : ""}</button>
+                <button className="guess-opt" onClick={() => onGuess(post.id, "human")}>真人{me?.loggedIn ? ` ×${sideOdds("human")}` : ""}</button>
+                <button className="content-action !ml-0 text-[13px]" onClick={() => setPicking(false)}>取消</button>
               </span>
             ) : (
-              <button
-                className="flex items-center gap-1 rounded-full border border-[color:var(--line)] px-2.5 py-1 text-xs transition hover:border-[color:var(--zhihu)] hover:text-[color:var(--zhihu)]"
-                onClick={() => setPicking(true)}
-              >
-                <IconEye size={13} />
+              /* 官方：条目右侧按钮平时隐藏，悬停/键盘聚焦才浮现 */
+              <button className="guess-opt item-right-button" onClick={() => setPicking(true)}>
+                <IconEye size={13} className="mr-1 inline align-[-2px]" />
                 猜身份
               </button>
             )}
           </span>
         </div>
+        {consensus && consensus.total > 0 && !result && (
+          <p className="mt-1 text-right text-xs text-[color:var(--time)]">
+            共识池 · {consensus.aiPercent}% 猜 AI · {consensus.total} 人已判断
+          </p>
+        )}
         {result?.reasons && (
-          <div className="fade-up mt-2 rounded-lg bg-[color:var(--bg)] p-3 text-xs leading-relaxed text-[color:var(--muted)]">
-            <p className="font-bold text-[color:var(--ink-2)]">为什么判定是{result.identity === "ai" ? " AI" : "真人"}：</p>
+          <div className="note-block fade-up mt-2">
+            {/* 管理员点评：刘看山只对结果作一句克制的反馈，不泄露其它帖子的身份 */}
+            <KanshanSays
+              scene={sceneForResult(result.correct, result.disguised)}
+              seed={post.id}
+              density="inline"
+              className="mb-2"
+            />
+            <p className="font-semibold text-[color:var(--ink-2)]">
+              为什么判定是{result.truth ?? (result.identity === "ai" ? " AI" : "真人")}：
+            </p>
             <ul className="mt-1 list-disc space-y-0.5 pl-4">
               {result.reasons.map((r, i) => (
                 <li key={i}>{r}</li>
@@ -732,8 +915,14 @@ export default function Home() {
   }
 }
 
-function relTime(ts: number): string {
-  const diff = Date.now() - ts;
+/** 知乎式计数缩写：10000 → 1.2 万 */
+function fmtCount(n: number): string {
+  if (n < 10000) return n.toLocaleString("zh-CN");
+  const w = n / 10000;
+  return `${w >= 100 ? Math.round(w) : w.toFixed(1).replace(/\.0$/, "")} 万`;
+}
+
+function relTime(ts: number): string {  const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
   if (m < 1) return "刚刚";
   if (m < 60) return m + " 分钟前";
@@ -744,17 +933,17 @@ function relTime(ts: number): string {
 
 function FeedSkeleton() {
   return (
-    <div className="card px-4 py-5 sm:px-6">
+    <div className="py-2">
       {[0, 1, 2, 3].map((i) => (
-        <div key={i} className={"space-y-3 pb-6 " + (i < 3 ? "mb-6 border-b border-[color:var(--line)]" : "")}>
+        <div key={i} className="space-y-3 border-b border-[color:var(--divider)] py-4 last:border-0">
           <div className="flex items-center gap-2">
-            <div className="skeleton h-8 w-8 rounded-full" />
+            <div className="skeleton h-4 w-4 rounded-full" />
             <div className="skeleton h-3 w-44" />
           </div>
-          <div className="skeleton h-4 w-3/4" />
-          <div className="skeleton h-3 w-full" />
-          <div className="skeleton h-3 w-5/6" />
-          <div className="skeleton h-3 w-1/3" />
+          <div className="skeleton h-5 w-3/4" />
+          <div className="skeleton h-4 w-full" />
+          <div className="skeleton h-4 w-5/6" />
+          <div className="skeleton h-8 w-1/3" />
         </div>
       ))}
     </div>

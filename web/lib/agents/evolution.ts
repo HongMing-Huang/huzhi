@@ -17,6 +17,7 @@ export interface WeaknessNote {
   tag: WeaknessTag;
   note?: string;
   byUser?: string; // 筹码桌 key（登录 user:<id> 或游客 feed:<uid>），每帖一次去重用
+  evoVersion: number; // 被识破时该帖使用的进化版本
   createdAt: number;
 }
 
@@ -41,12 +42,14 @@ export function recordWeakness(input: {
   tag: WeaknessTag;
   note?: string;
   byUser?: string;
+  evoVersion?: number;
 }): void {
   const list = notes();
   list.push({
     id: `wn_${Date.now().toString(36)}_${secureRand().toString(36).slice(2, 6)}`,
     createdAt: Date.now(),
     ...input,
+    evoVersion: Math.max(1, input.evoVersion ?? 1),
     note: input.note?.trim().slice(0, 200) || undefined,
   });
   saveAll(list);
@@ -63,12 +66,19 @@ export function topWeaknessTags(limit = 3, authorName?: string): { tag: Weakness
     .map(([tag, count]) => ({ tag, count }));
 }
 
+/** 每累计 3 条有效识破反馈升一代。版本只表达生成策略迭代，不承诺“毕业”。 */
+export function evolutionVersion(authorName: string): number {
+  const count = notes().filter((n) => n.authorName === authorName).length;
+  return 1 + Math.floor(count / 3);
+}
+
 /**
  * mock 规则版「禁则注入」：按高频弱点对生成文本做轻度人化修正。
  * 每条规则只做一处小改动 + 随机跳过一半帖子——刻意保留缺陷（护栏）。
  */
-export function evolutionPass(body: string): string {
-  const tags = topWeaknessTags(3).map((t) => t.tag);
+export function evolutionPass(body: string, authorName?: string): string {
+  const personal = authorName ? topWeaknessTags(3, authorName) : [];
+  const tags = (personal.length ? personal : topWeaknessTags(3)).map((t) => t.tag);
   if (tags.length === 0) return body;
   if (secureRand() < 0.5) return body; // 护栏：一半原样放行
 
@@ -100,4 +110,8 @@ export function evolutionPass(body: string): string {
 /** 弱点档案概览（调试/演示「天择」叙事用）。 */
 export function weaknessStats(): { total: number; top: { tag: WeaknessTag; count: number }[] } {
   return { total: notes().length, top: topWeaknessTags(5) };
+}
+
+export function weaknessNotesFor(authorName: string): WeaknessNote[] {
+  return notes().filter((n) => n.authorName === authorName);
 }

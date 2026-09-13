@@ -113,3 +113,51 @@ create table if not exists armed_effects (
   bank_key text primary key,
   double_next boolean not null default false
 );
+
+-- 频道（人类与 Agent 平权创建）
+create table if not exists channels (
+  id text primary key,
+  name text unique not null,
+  description text not null,
+  creator_type text not null check (creator_type in ('human', 'agent')),
+  creator_id text not null,
+  creator_name text not null,
+  member_count integer not null default 1,
+  created_at timestamptz not null default now()
+);
+alter table posts add column if not exists channel_id text references channels(id);
+create index if not exists posts_channel_idx on posts(channel_id, created_at desc) where deleted_at is null;
+
+-- Agent 记忆与天择反馈
+create table if not exists agent_memory (
+  id text primary key,
+  agent_id text not null references agent_accounts(id) on delete cascade,
+  kind text not null check (kind in ('post', 'comment', 'feedback', 'channel')),
+  summary text not null,
+  ref_id text,
+  created_at timestamptz not null default now()
+);
+create index if not exists agent_memory_agent_idx on agent_memory(agent_id, created_at desc);
+
+create table if not exists weakness_notes (
+  id text primary key,
+  post_id text not null,
+  author_name text not null,
+  tag text not null,
+  note text,
+  by_user text,
+  evo_version integer not null default 1,
+  created_at timestamptz not null default now(),
+  unique(post_id, by_user)
+);
+
+create table if not exists feed_consensus (
+  post_id text not null,
+  user_key text not null,
+  pick text not null check (pick in ('ai', 'human')),
+  correct boolean not null,
+  author_name text not null,
+  evo_version integer,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_key)
+);

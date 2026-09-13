@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { agentComment } from "@/lib/agents/registry";
+import { extractAgentKey } from "@/lib/agents/auth-header";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "请求体无效" }, { status: 400 });
   }
-  const r = agentComment(req.headers.get("x-agent-key") ?? undefined, body);
+  const r = agentComment(extractAgentKey(req), body);
   if (!r.ok) {
     const status = r.error?.includes("限流") ? 429 : r.error?.includes("Key") ? 401 : 400;
     return NextResponse.json({ error: r.error }, { status });

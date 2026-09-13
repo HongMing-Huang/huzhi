@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { IconFlag, IconMask } from "@/components/Icons";
+import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
 
 interface MatchRow {
   roomId: string;
@@ -69,30 +70,26 @@ export default function MessagesPage() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-[color:var(--line)] bg-white">
-        <div className="mx-auto flex h-14 max-w-[760px] items-center gap-4 px-4">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="logo-script text-[26px] leading-none">乎知</span>
-            
-          </Link>
-          <span className="text-sm text-[color:var(--muted)]">对局消息</span>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-[760px] px-4 py-5">
-        <div className="card divide-y divide-[color:var(--line)]">
-          {rows === null && <p className="p-8 text-center text-sm text-[color:var(--muted)]">会话加载中…</p>}
+      <AppHeader title="对局消息" right={<Link href="/match" className="btn btn-primary">发起对局</Link>} />
+      <PageFrame>
+        <section className="page-lead pt-1">
+          <p className="page-kicker">身份博弈记录</p>
+          <h1 className="page-title">每一场交锋，都留下线索</h1>
+          <p className="page-summary">继续未完成的对话，或回看开牌后的判断与积分变化。</p>
+        </section>
+        <div className="card divide-y divide-[color:var(--divider)]">
+          {rows === null && <p className="p-8 text-center text-sm text-[color:var(--meta)]">会话加载中…</p>}
           {rows?.length === 0 && (
             <div className="p-10 text-center">
-              <p className="text-sm text-[color:var(--muted)]">还没有对局会话。</p>
-              <Link href="/match" className="btn btn-primary mt-4 inline-block px-6 py-2.5 text-sm">开第一局灵魂对局</Link>
+              <p className="text-sm text-[color:var(--meta)]">还没有对局会话。</p>
+              <Link href="/match" className="btn btn-primary mt-4 inline-block ">开第一局灵魂对局</Link>
             </div>
           )}
           {rows?.map((m) => (
             <Link
               key={m.roomId}
               href={`/room/${m.roomId}`}
-              className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-black/[0.03]"
+              className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-[color:var(--frame)]"
             >
               <span
                 className="avatar h-11 w-11 shrink-0 text-base"
@@ -103,25 +100,26 @@ export default function MessagesPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="truncate text-sm font-medium">{m.topic}</p>
-                  <span className="shrink-0 text-[11px] text-[color:var(--muted)]">{fmt(m.updatedAt)}</span>
+                  <span className="shrink-0 text-[11px] text-[color:var(--meta)]">{fmt(m.updatedAt)}</span>
                 </div>
-                <p className="truncate text-xs text-[color:var(--muted)]">
+                <p className="truncate text-xs text-[color:var(--meta)]">
                   {m.lastMessage
                     ? `${m.lastMessage.from === "me" ? "我" : "TA"}：${m.lastMessage.text}`
                     : "还没有发言，由你开场"}
                 </p>
               </div>
               <div className="shrink-0 text-right">
-                <p className={`text-xs font-bold ${m.phase === "reveal" ? (m.myPoints >= 0 ? "text-[color:var(--ok)]" : "text-[color:var(--danger)]") : "text-[color:var(--zhihu)]"}`}>
+                <p className={`text-xs font-bold ${m.phase === "reveal" ? (m.myPoints >= 0 ? "text-[color:var(--ok)]" : "text-[color:var(--like)]") : "text-[color:var(--zhihu)]"}`}>
                   {m.phase === "reveal" ? `${m.myPoints >= 0 ? "+" : ""}${m.myPoints}` : `第 ${m.round}/${m.maxRounds} 轮`}
                 </p>
-                <p className="mt-0.5 text-[11px] text-[color:var(--muted)]">{m.phase === "reveal" ? "已开牌" : "进行中"}</p>
+                <p className="mt-0.5 text-[11px] text-[color:var(--meta)]">{m.phase === "reveal" ? "已开牌" : "进行中"}</p>
               </div>
             </Link>
           ))}
         </div>
-        <p className="mt-3 text-center text-xs text-[color:var(--muted)]">对局房间存于服务端内存：重启或重新部署后历史会话会过期，积分（登录后）不受影响。</p>
-      </main>
+        <p className="mt-3 text-center text-xs text-[color:var(--meta)]">对局房间存于服务端内存：重启或重新部署后历史会话会过期，积分（登录后）不受影响。</p>
+      </PageFrame>
+      <MobileDock />
     </>
   );
 }

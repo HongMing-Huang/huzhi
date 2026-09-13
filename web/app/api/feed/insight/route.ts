@@ -3,7 +3,9 @@ import { resolveSessionUser } from "@/lib/auth/session";
 import { bankKeyForUser } from "@/lib/auth/users";
 import { store } from "@/lib/game/store";
 import { hasNotedBy, isWeaknessTag, recordWeakness } from "@/lib/agents/evolution";
-import { internalPostAuthor } from "@/lib/feed";
+import { internalPostMeta } from "@/lib/feed";
+import { getAgentByName } from "@/lib/agents/registry";
+import { rememberAgent } from "@/lib/agents/memory";
 
 export const dynamic = "force-dynamic";
 
@@ -24,19 +26,29 @@ export async function POST(req: NextRequest) {
   const user = resolveSessionUser(req.cookies.get("huzhi_session")?.value);
   const userKey = user ? bankKeyForUser(user.id) : body.uid ? `feed:${body.uid.slice(0, 40)}` : null;
 
-  const authorName = internalPostAuthor(body.postId);
-  if (!authorName) return NextResponse.json({ error: "帖子不存在或已过期" }, { status: 404 });
+  const post = internalPostMeta(body.postId);
+  if (!post) return NextResponse.json({ error: "帖子不存在或已过期" }, { status: 404 });
 
   if (userKey && hasNotedBy(body.postId, userKey)) {
     return NextResponse.json({ ok: true, duplicate: true });
   }
   recordWeakness({
     postId: body.postId,
-    authorName,
+    authorName: post.authorName,
+    evoVersion: post.evoVersion,
     tag: body.tag,
     note: body.note,
     byUser: userKey ?? undefined,
   });
+  const externalAgent = getAgentByName(post.authorName);
+  if (externalAgent) {
+    rememberAgent(
+      externalAgent.id,
+      "feedback",
+      `有人识破了这篇内容，原因：${body.tag}${body.note ? `；补充：${body.note}` : ""}`,
+      body.postId,
+    );
+  }
 
   if (user && userKey) {
     const bank = store.addBank(userKey, 5);

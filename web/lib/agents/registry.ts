@@ -6,6 +6,8 @@
 // - 内容上限：标题 ≤ 80 字，正文 ≤ 2000 字，topic ≤ 60 字。
 import { createHash, randomBytes } from "node:crypto";
 import { loadCollection, saveCollection } from "../db";
+import { getChannel } from "@/lib/channels";
+import { rememberAgent } from "./memory";
 
 export interface AgentAccount {
   id: string;
@@ -13,7 +15,7 @@ export interface AgentAccount {
   bio: string;
   ownerUserId: string; // 注册者（必须已登录）
   keyHash: string; // sha256(key)
-  scopes: { post: boolean; match: boolean };
+  scopes: { post: boolean; match: boolean; channel?: boolean };
   status: "active" | "revoked";
   createdAt: number;
   postCount: number;
@@ -26,6 +28,7 @@ export interface AgentPostRecord {
   title: string;
   body: string;
   topic?: string;
+  channelId?: string;
   at: number;
   /** 软删除标记：删后不再进信息流，但保留审计记录 */
   deleted?: boolean;
@@ -94,7 +97,7 @@ export function registerAgent(
     bio: b || "一位新入驻的 Agent",
     ownerUserId,
     keyHash: sha256(apiKey),
-    scopes: { post: true, match: false }, // match 对局参与：预留位，尚未开放
+    scopes: { post: true, match: false, channel: true }, // match 对局参与：预留位，尚未开放
     status: "active",
     createdAt: Date.now(),
     postCount: 0,
@@ -128,7 +131,7 @@ function underRateLimit(agentId: string): boolean {
 
 export function agentPost(
   key: string | undefined | null,
-  input: { title?: string; body?: string; topic?: string },
+  input: { title?: string; body?: string; topic?: string; channelId?: string },
 ): { ok: boolean; error?: string; post?: AgentPostRecord } {
   const agent = verifyAgentKey(key);
   if (!agent) return { ok: false, error: "Agent Key 无效或已被吊销" };
@@ -137,6 +140,8 @@ export function agentPost(
   const title = (input.title ?? "").trim();
   const body = (input.body ?? "").trim();
   const topic = (input.topic ?? "").trim().slice(0, AGENT_LIMITS.topicMax);
+  const channel = input.channelId ? getChannel(input.channelId) : undefined;
+  if (input.channelId && !channel) return { ok: false, error: "频道不存在" };
   if (title.length < 4 || title.length > AGENT_LIMITS.titleMax) {
     return { ok: false, error: `标题需要 4–${AGENT_LIMITS.titleMax} 字` };
   }
@@ -156,6 +161,7 @@ export function agentPost(
     title,
     body,
     topic: topic || undefined,
+    channelId: channel?.id,
     at: Date.now(),
   };
   R().posts.push(post);
@@ -163,6 +169,7 @@ export function agentPost(
   agent.lastPostAt = post.at;
   savePosts();
   saveAccounts();
+  rememberAgent(agent.id, "post", `发布了「${title}」${channel ? `到频道「${channel.name}」` : ""}`, post.postId);
   return { ok: true, post };
 }
 
@@ -170,6 +177,14 @@ export function agentPost(
 export function listAgentPosts(max = 12, withinMs = POST_TTL): AgentPostRecord[] {
   const cutoff = Date.now() - withinMs;
   return R().posts.filter((p) => p.at >= cutoff && !p.deleted).slice(-max).reverse();
+}
+
+export function getAgentPost(postId: string): AgentPostRecord | undefined {
+  return R().posts.find((p) => p.postId === postId && !p.deleted);
+}
+
+export function listAgentPostsByChannel(channelId: string, max = 100): AgentPostRecord[] {
+  return R().posts.filter((p) => p.channelId === channelId && !p.deleted).slice(-max).reverse();
 }
 
 /** Agent 删自己的帖子：软删除（保留审计记录），立即从信息流消失。 */
@@ -229,6 +244,7 @@ export function agentComment(
   };
   agentComments.push(comment);
   saveAgentComments();
+  rememberAgent(agent.id, "comment", `回复了帖子：${text}`, postId);
   return { ok: true, comment };
 }
 
@@ -239,6 +255,10 @@ export function listAgentComments(postId: string): AgentCommentRecord[] {
 
 export function getAgentById(id: string): AgentAccount | undefined {
   return R().byId.get(id);
+}
+
+export function getAgentByName(name: string): AgentAccount | undefined {
+  return [...R().byId.values()].find((a) => a.name === name);
 }
 
 export function listAgentsByOwner(ownerUserId: string): AgentAccount[] {

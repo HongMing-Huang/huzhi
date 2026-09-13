@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { avatarStyle } from "@/lib/feed/residents";
-import { IconAgree, IconComment, IconEye } from "@/components/Icons";
+import { IconAgree, IconChevronDown, IconComment, IconEye, IconPlus, IconStar } from "@/components/Icons";
+import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
 import InsightDialog from "@/components/InsightDialog";
+import Kanshan from "@/components/Kanshan";
 
 interface PostDetail {
   id: string;
@@ -20,6 +22,7 @@ interface PostDetail {
   comments: number;
   url?: string;
   topic: string;
+  consensus?: { ai: number; human: number; total: number; aiPercent: number };
 }
 
 interface Comment {
@@ -40,10 +43,32 @@ interface GuessResult {
   bank: number;
   reasons?: string[];
   askReason?: boolean;
+  evoVersion?: number;
+  identityKind?: "human" | "agent" | "human_as_agent" | "agent_as_human";
+  disguised?: boolean;
+  truth?: string;
+  contrarianBonus?: number;
+  timingBonus?: number;
+  consensus?: { ai: number; human: number; total: number; aiPercent: number };
+}
+
+interface ClueCard {
+  kind: string;
+  title: string;
+  cost: number;
+}
+
+interface OpenedClue {
+  kind: string;
+  title: string;
+  score: number;
+  findings: string[];
 }
 
 interface XrayResult {
   identity: "ai" | "human";
+  /** 四类身份真相文案，如「AI（在伪装真人）」 */
+  truth?: string;
   reasons: string[];
 }
 
@@ -74,8 +99,13 @@ export default function PostPage() {
   const [askInsight, setAskInsight] = useState(false);
   const [xray, setXray] = useState<XrayResult | null>(null);
   const [xrayCount, setXrayCount] = useState<number | null>(null);
+  // 线索卡：判断前可花积分翻开的取证结论
+  const [clueCards, setClueCards] = useState<ClueCard[]>([]);
+  const [openedClues, setOpenedClues] = useState<Record<string, OpenedClue>>({});
+  const [clueErr, setClueErr] = useState("");
   const [picking, setPicking] = useState(false);
   const [voted, setVoted] = useState(false);
+  const [downed, setDowned] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [guestName, setGuestName] = useState("");
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
@@ -89,12 +119,18 @@ export default function PostPage() {
       if (!res.ok) throw new Error(d.error ?? "加载失败");
       setPost(d.post);
       setComments(d.comments ?? []);
+      // 拉取可翻的线索卡（只拿卡面与价格，内容要花积分）
+      fetch(`/api/clue?postId=${encodeURIComponent(String(id))}`)
+        .then((r) => r.json())
+        .then((c) => setClueCards(c.cards ?? []))
+        .catch(() => {});
     } catch (e) {
       setFatal(e instanceof Error ? e.message : "加载失败");
     }
   }, [id]);
 
   useEffect(() => {
+    setVoted(localStorage.getItem(`huzhi_voted_${id}`) === "1");
     load();
     fetch("/api/auth/me")
       .then((r) => r.json())
@@ -122,10 +158,30 @@ export default function PostPage() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "使用失败");
-      setXray({ identity: d.identity, reasons: d.reasons });
+      setXray({ identity: d.identity, truth: d.truth, reasons: d.reasons });
       if (typeof d.inventory?.xray === "number") setXrayCount(d.inventory.xray);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "使用失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openClue(kind: string) {
+    if (busy) return;
+    setBusy(true);
+    setClueErr("");
+    try {
+      const res = await fetch("/api/clue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId: id, kind }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "翻牌失败");
+      setOpenedClues((prev) => ({ ...prev, [kind]: d.clue }));
+    } catch (e) {
+      setClueErr(e instanceof Error ? e.message : "翻牌失败");
     } finally {
       setBusy(false);
     }
@@ -154,6 +210,7 @@ export default function PostPage() {
     const d = await res.json();
     if (res.ok) {
       setVoted(true);
+      localStorage.setItem(`huzhi_voted_${id}`, "1");
       setPost({ ...post, votes: d.votes });
     }
   }
@@ -182,31 +239,32 @@ export default function PostPage() {
 
   if (fatal) {
     return (
-      <main className="mx-auto max-w-[720px] px-4 py-10 text-center">
-        <p className="text-[color:var(--muted)]">{fatal}</p>
-        <Link href="/" className="btn btn-primary mt-4 inline-block px-6 py-2.5">回社区</Link>
-      </main>
+      <><AppHeader title="帖子详情" /><PageFrame><section className="card mt-4 p-10 text-center"><h1 className="text-lg font-medium">帖子暂时无法打开</h1><p className="mt-2 text-sm text-[color:var(--meta)]">{fatal}</p><Link href="/" className="btn btn-primary mt-5">回社区</Link></section></PageFrame><MobileDock /></>
     );
   }
   if (!post) {
-    return <main className="grid min-h-screen place-items-center text-[color:var(--muted)]">帖子装载中…</main>;
+    return <><AppHeader title="帖子详情" /><PageFrame><div className="space-y-5 py-5" aria-label="帖子装载中"><div className="skeleton h-8 w-4/5" /><div className="skeleton h-10 w-44" /><div className="skeleton h-4 w-full" /><div className="skeleton h-4 w-11/12" /><div className="skeleton h-4 w-2/3" /></div></PageFrame><MobileDock /></>;
   }
 
   const paragraphs = (post.body ?? post.excerpt).split(/\n+/).filter(Boolean);
+  const consensus = guess?.consensus ?? post.consensus;
+  const sideOdds = (pick: "ai" | "human") => {
+    const ai = consensus?.ai ?? 0;
+    const human = consensus?.human ?? 0;
+    const same = (pick === "ai" ? ai : human) + 2;
+    const opposite = (pick === "ai" ? human : ai) + 2;
+    return Math.min(3, 1 + opposite / same).toFixed(1);
+  };
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-[color:var(--line)] bg-white">
-        <div className="mx-auto flex h-14 max-w-[720px] items-center gap-3 px-4">
-          <Link href="/" className="text-sm text-[color:var(--muted)] hover:text-[color:var(--ink)]">‹ 回社区</Link>
-          <span className="mx-auto truncate text-sm font-medium">帖子详情</span>
-          <span className="w-14" />
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-[720px] px-4 py-5 pb-16">
-        <article className="card p-5 sm:p-7">
-          <h1 className="display text-xl sm:text-2xl">{post.title}</h1>
+      <AppHeader title="帖子详情" right={<Link href="/" className="btn btn-plain px-3 py-1.5 text-xs">返回社区</Link>} />
+      <div className="detail-canvas min-h-[calc(100vh-58px)]">
+      <PageFrame wide>
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,694px)_minmax(260px,296px)]">
+          <div className="min-w-0 space-y-3">
+        <article className="detail-card overflow-hidden px-5 pt-5">
+          <h1 className="text-[22px] font-semibold leading-[32px] text-[color:var(--ink)]">{post.title}</h1>
 
           {/* 作者行 */}
           <div className="mt-4 flex items-center gap-3">
@@ -214,10 +272,10 @@ export default function PostPage() {
               {post.authorName.slice(0, 1)}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{post.authorName}</p>
-              <p className="truncate text-xs text-[color:var(--muted)]">{post.authorBio}</p>
+              <p className="truncate text-[15px] font-medium text-[color:var(--ink-2)]">{post.authorName}</p>
+              <p className="truncate text-[13px] text-[color:var(--time)]">{post.authorBio}</p>
             </div>
-            <button className="btn btn-outline px-4 py-1.5 text-xs">+ 关注</button>
+            <button className="btn btn-outline shrink-0"><IconPlus size={13} />关注</button>
           </div>
 
           {/* 正文 */}
@@ -233,27 +291,80 @@ export default function PostPage() {
               rel="noopener noreferrer"
               className="mt-4 inline-block text-xs text-[color:var(--zhihu)] hover:underline"
             >
-              原文链接（知乎站内） ↗
+              在知乎查看原文
             </a>
           )}
 
+          {/* 线索卡：判断之前先侦查。依据 docs/game-design-v31.md——
+              知乎社区共识是"文风可被模仿，事实核验才可靠"，所以这里给的是证据不是答案。 */}
+          {!guess && clueCards.length > 0 && (
+            <section className="mt-5 border-t border-[color:var(--divider)] pt-4">
+              <div className="flex items-baseline justify-between">
+                <b className="text-[15px] text-[color:var(--ink-2)]">取证线索</b>
+                <span className="text-[13px] text-[color:var(--time)]">翻开线索再下注，比凭感觉更稳</span>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {clueCards.map((c) => {
+                  const opened = openedClues[c.kind];
+                  return (
+                    <div key={c.kind} className="clue-card" data-opened={Boolean(opened)}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[14px] font-medium text-[color:var(--ink-2)]">{c.title}</span>
+                        {opened ? (
+                          <span className="tag-pill ml-auto !h-[20px] !px-1.5 !text-xs" data-tone={opened.score >= 55 ? "brand" : "hot"}>
+                            {opened.score} 分
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => openClue(c.kind)}
+                            disabled={busy || !loggedIn}
+                            className="btn btn-soft ml-auto !h-[26px] !px-2.5 !text-xs"
+                            title={loggedIn ? `消耗 ${c.cost} 积分翻开` : "登录后可翻线索卡"}
+                          >
+                            {c.cost} 分翻开
+                          </button>
+                        )}
+                      </div>
+                      {opened && (
+                        <ul className="fade-up mt-2 space-y-1 text-[13px] leading-relaxed text-[color:var(--meta)]">
+                          {opened.findings.map((fd, i) => (
+                            <li key={i}>· {fd}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {clueErr && <p className="mt-2 text-[13px] text-[color:var(--like)]">{clueErr}</p>}
+              {!loggedIn && (
+                <p className="mt-2 text-[13px] text-[color:var(--time)]">线索卡需要登录后使用（从账号扣积分）。</p>
+              )}
+            </section>
+          )}
+
           {/* 话题 + 猜身份 */}
-          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[color:var(--line)] pt-4">
-            <span className="rounded-full bg-[color:var(--zhihu)]/8 px-3 py-1 text-xs text-[color:var(--zhihu)]">话题：{post.topic}</span>
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[color:var(--divider)] pt-4">
+            <span className="tag-pill max-w-[280px] truncate" title={post.topic} data-tone="brand">话题：{post.topic}</span>
             {guess ? (
-              <span className={`reveal-flip rounded px-2.5 py-1 text-xs ${guess.correct ? "bg-emerald-50 text-[color:var(--ok)]" : "bg-rose-50 text-[color:var(--danger)]"}`}>
+              <span className="result-pill reveal-flip" data-correct={guess.correct}>
                 {guess.correct ? "✓ 猜对了" : "✗ 猜错了"} <b className="tnum">{guess.points >= 0 ? "+" : ""}{guess.points}</b>
-                <span className="opacity-70"> · TA 是{guess.identity === "ai" ? "AI" : "真人"}</span>
+                <span className="opacity-70"> · TA 是{guess.truth ?? (guess.identity === "ai" ? "AI" : "真人")}</span>
+                {guess.disguised && <b className="ml-1 text-[color:var(--hot)]">识破伪装</b>}
+                {guess.evoVersion && <span className="opacity-70"> · 第 {guess.evoVersion} 代</span>}
+                {(guess.contrarianBonus ?? 0) > 0 && <b className="ml-1 text-[color:var(--gold)]">逆风 +{guess.contrarianBonus}</b>}
+                {(guess.timingBonus ?? 0) > 0 && <b className="ml-1 text-[color:var(--gold)]">先手 +{guess.timingBonus}</b>}
               </span>
             ) : picking ? (
               <span className="inline-flex items-center gap-1.5">
-                <button className="guess-opt px-3 py-1 text-xs" onClick={() => doGuess("ai")}>AI</button>
-                <button className="guess-opt px-3 py-1 text-xs" onClick={() => doGuess("human")}>真人</button>
-                <button className="btn-plain btn px-1 text-xs" onClick={() => setPicking(false)}>取消</button>
+                <button className="guess-opt" onClick={() => doGuess("ai")}>AI{loggedIn ? ` ×${sideOdds("ai")}` : ""}</button>
+                <button className="guess-opt" onClick={() => doGuess("human")}>真人{loggedIn ? ` ×${sideOdds("human")}` : ""}</button>
+                <button className="content-action !ml-0 text-[13px]" onClick={() => setPicking(false)}>取消</button>
               </span>
             ) : (
-              <button className="btn btn-outline px-3 py-1.5 text-xs" onClick={() => setPicking(true)}>
-                这帖子是 AI 还是真人？
+              /* 本页核心玩法入口：用主按钮承载，避免层级低于赞同键 */
+              <button className="btn btn-primary" onClick={() => setPicking(true)}>
+                <IconEye size={14} /> 这帖子是 AI 还是真人？
               </button>
             )}
             {loggedIn && !guess && (
@@ -261,16 +372,19 @@ export default function PostPage() {
                 onClick={useXray}
                 disabled={busy || xrayCount === 0}
                 title="消耗一张透视镜，直接查看身份判定与理由"
-                className="btn btn-plain border border-[color:var(--line)] px-2.5 py-1 text-xs"
+                className="guess-opt"
               >
-                <IconEye size={13} className="inline" /> 透视镜 {typeof xrayCount === "number" ? `（${xrayCount}）` : ""}
+                <IconEye size={13} className="mr-1 inline align-[-2px]" /> 透视镜 {typeof xrayCount === "number" ? `（${xrayCount}）` : ""}
               </button>
+            )}
+            {consensus && consensus.total > 0 && !guess && (
+              <span className="text-[13px] text-[color:var(--time)]">共识池：{consensus.aiPercent}% 猜 AI · {consensus.total} 人</span>
             )}
           </div>
           {xray && (
-            <div className="fade-up mt-3 rounded bg-[color:var(--bg)] p-3 text-xs leading-relaxed text-[color:var(--muted)]">
-              <p className="font-bold text-[color:var(--ink-2)]">
-                🔮 透视镜判定：TA 是{xray.identity === "ai" ? "AI" : "真人"}（不计分）
+            <div className="note-block fade-up mt-3">
+              <p className="font-semibold text-[color:var(--ink-2)]">
+                透视镜判定：TA 是{xray.truth ?? (xray.identity === "ai" ? "AI" : "真人")}（不计分）
               </p>
               <ul className="mt-1 list-disc space-y-0.5 pl-4">
                 {xray.reasons.map((r, i) => (
@@ -280,8 +394,10 @@ export default function PostPage() {
             </div>
           )}
           {guess?.reasons && (
-            <div className="fade-up mt-3 rounded bg-[color:var(--bg)] p-3 text-xs leading-relaxed text-[color:var(--muted)]">
-              <p className="font-bold text-[color:var(--ink-2)]">为什么判定是{guess.identity === "ai" ? " AI" : "真人"}：</p>
+            <div className="note-block fade-up mt-3">
+              <p className="font-semibold text-[color:var(--ink-2)]">
+                为什么判定是{guess.truth ?? (guess.identity === "ai" ? " AI" : "真人")}：
+              </p>
               <ul className="mt-1 list-disc space-y-0.5 pl-4">
                 {guess.reasons.map((r, i) => (
                   <li key={i}>{r}</li>
@@ -291,27 +407,36 @@ export default function PostPage() {
           )}
           {askInsight && <InsightDialog postId={String(id)} onClose={() => setAskInsight(false)} />}
 
-          {/* 动作行 */}
-          <div className="mt-4 flex items-center gap-5 border-t border-[color:var(--line)] pt-3 text-sm text-[color:var(--muted)]">
-            <button onClick={vote} className={`transition hover:text-[color:var(--zhihu)] ${voted ? "text-[color:var(--zhihu)]" : ""}`}>
-              <IconAgree size={14} className="inline" /> 赞同 <span className="tnum">{post.votes.toLocaleString()}</span>
+          {/* 动作行：官方 .ContentItem-actions（负边距贴合卡片、项间 24px） */}
+          <div className="content-actions -mx-5 mt-4 border-t border-[color:var(--divider)] px-5 pt-2.5">
+            <button onClick={vote} className="vote-button whitespace-nowrap" data-voted={voted}>
+              <IconAgree size={14} /> {voted ? "已赞同" : "赞同"} <span className="tnum">{post.votes.toLocaleString("zh-CN")}</span>
             </button>
-            <span className="inline-flex items-center gap-1"><IconComment size={14} /><span className="tnum">{comments.length}</span> 条评论</span>
-            <span className="ml-auto text-xs">发布于 {fmtTime(Date.now() - 3600_000 * 3)}</span>
+            <button className="vote-button vote-down px-2" aria-label="反对" title="反对" data-voted={downed} aria-pressed={downed} onClick={() => setDowned((v) => !v)}>
+              <IconChevronDown size={14} />
+            </button>
+            <span className="content-action whitespace-nowrap"><IconComment size={14} /><span className="tnum">{comments.length}</span> 条评论</span>
+            <button className="content-action" onClick={() => navigator.clipboard.writeText(location.href)}>
+              <IconStar size={14} /> 收藏
+            </button>
+            <button className="content-action" onClick={() => navigator.clipboard.writeText(location.href)}>
+              分享
+            </button>
+            <span className="ml-auto hidden text-[13px] text-[color:var(--time)] sm:block">发布于 {fmtTime(Date.now() - 3600_000 * 3)}</span>
           </div>
         </article>
 
         {/* 评论区 */}
-        <section className="card mt-4 p-5 sm:p-6">
-          <b className="text-sm">{comments.length} 条评论</b>
-          <div className="mt-4 space-y-2">
+        <section className="detail-card">
+          <div className="card-header"><b className="card-header-text text-sm">{comments.length} 条评论</b></div>
+          <div className="card-section space-y-2">
             {comments.map((c) => (
-              <div key={c.id} className="flex gap-3 border-b border-[color:var(--line)] pb-3 last:border-0">
+              <div key={c.id} className="flex gap-3 border-b border-[color:var(--divider)] pb-3 last:border-0">
                 <span className="avatar h-8 w-8 text-xs" style={inlineStyle(avatarStyle(c.hueA, c.hueB))}>
                   {c.authorName.slice(0, 1)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs text-[color:var(--muted)]">
+                  <p className="text-[13px] text-[color:var(--time)]">
                     <b className="text-[color:var(--ink-2)]">{c.authorName}</b>
                     <span className="ml-2">{fmtTime(c.at)}</span>
                   </p>
@@ -319,35 +444,70 @@ export default function PostPage() {
                 </div>
               </div>
             ))}
-          </div>
+            {!comments.length && <p className="py-6 text-center text-sm text-[color:var(--time)]">还没有评论，来说两句</p>}
 
-          {/* 评论输入 */}
-          <div className="mt-4">
-            {!loggedIn && (
-              <input
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                maxLength={20}
-                placeholder="你的昵称（或登录后评论）"
-                className="mb-2 w-full max-w-56 rounded border border-[color:var(--line)] px-3 py-1.5 text-sm outline-none focus:border-[color:var(--zhihu)]"
-              />
-            )}
-            <div className="flex gap-2">
-              <input
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                maxLength={500}
-                placeholder="写下你的评论…"
-                className="min-w-0 flex-1 rounded border border-[color:var(--line)] px-3 py-2 text-sm outline-none focus:border-[color:var(--zhihu)]"
-              />
-              <button onClick={submitComment} disabled={busy || commentText.trim().length < 2} className="btn btn-primary px-5 text-sm">
-                评论
-              </button>
+            {/* 评论输入 */}
+            <div className="pt-2">
+              {!loggedIn && (
+                <input
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  maxLength={20}
+                  placeholder="你的昵称（或登录后评论）"
+                  className="field mb-2 max-w-56 px-3 py-1.5 text-sm"
+                />
+              )}
+              <div className="flex gap-2">
+                <input
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  maxLength={500}
+                  placeholder="写下你的评论…"
+                  className="field min-w-0 flex-1 px-3 py-2 text-sm"
+                />
+                {/* 评论是社交动作，不是本页主行动（主行动是判断身份）。
+                    按设计哲学「一个页面最多一个主行动」，这里降为次行动。 */}
+                <button onClick={submitComment} disabled={busy || commentText.trim().length < 2} className="btn btn-outline shrink-0">
+                  评论
+                </button>
+              </div>
+              {err && <p className="mt-1.5 text-[13px] text-[color:var(--like)]">{err}</p>}
             </div>
-            {err && <p className="mt-1.5 text-xs text-[color:var(--danger)]">{err}</p>}
           </div>
         </section>
-      </main>
+          </div>
+
+          <aside className="hidden space-y-3 lg:block">
+            <section className="detail-card p-5">
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-semibold">身份判断台</p>
+                  <p className="mt-1 text-[13px] leading-5 text-[color:var(--meta)]">先看经历是否可核实，再看句式。别只凭“像 AI”下注。</p>
+                </div>
+                <Kanshan variant="idle" size={64} decorative />
+              </div>
+              <div className="mt-4 border-t border-[color:var(--divider)] pt-4">
+                <div className="flex items-center justify-between text-[13px] text-[color:var(--time)]">
+                  <span>公共共识</span>
+                  <span className="tnum">{consensus?.total ?? 0} 人判断</span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[color:var(--frame)]" aria-label={`当前 ${consensus?.aiPercent ?? 50}% 猜 AI`}>
+                  <span className="block h-full bg-[color:var(--zhihu)] transition-[width] duration-300 ease-out" style={{ width: `${consensus?.aiPercent ?? 50}%` }} />
+                </div>
+                <div className="mt-2 flex justify-between text-[13px] text-[color:var(--meta)]"><span>AI {consensus?.aiPercent ?? 50}%</span><span>真人 {100 - (consensus?.aiPercent ?? 50)}%</span></div>
+              </div>
+              {!guess && <p className="note-block mt-4">前 5 位猜对额外 +10；第 6–15 位 +5。越早判断，越少能借用群体答案。</p>}
+              <Link href="/about" className="mt-4 block text-[13px] text-[color:var(--zhihu)] hover:text-[color:var(--link-deep)]">了解积分与天择引擎</Link>
+            </section>
+            <section className="detail-card p-5 text-[13px] leading-6 text-[color:var(--meta)]">
+              <p className="font-semibold text-[color:var(--ink-2)]">判断提醒</p>
+              <p className="mt-2">真人也可能故意写得像 AI；Agent 会从“为什么被识破”的反馈中学习，但系统会保留缺陷，避免变成无法判断的完美伪装。</p>
+            </section>
+          </aside>
+        </div>
+      </PageFrame>
+      </div>
+      <MobileDock />
     </>
   );
 }

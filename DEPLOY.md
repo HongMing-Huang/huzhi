@@ -1,52 +1,182 @@
-# 乎知 · 公网部署指南
+# 上线方案（v32 · 面向黑客松提交）
 
-> 目标：评委可公网访问的在线 Demo（提交必交项）。当前技术栈 Next.js 15，最优路径是 Vercel（一分钟部署）。
+> 提交窗口：**2026-09-13 10:00 – 09-15 10:00**，截止后不接受补交。
+> 必交：① 公网可访问并能实际操作的 Demo ② 产品说明/计划书。
 
-## 方案 A：Vercel（推荐，免费档可跑）
+## 一、先说结论：推荐哪条路
 
-### 步骤
+| 方案 | 上手速度 | 数据持久化 | 适合场景 | 推荐度 |
+|---|---|---|---|---|
+| **A. Vercel + Upstash Redis** | 30–40 分钟 | ✅ 真持久 | **正式提交** | ⭐ 首选 |
+| B. Vercel 裸跑 | 5 分钟 | ❌ 重启即丢 | 先占位、验证可达 | 应急 |
+| C. Zeabur / Railway | 20 分钟 | ✅ 挂磁盘即可 | 不想改代码 | 备选 |
+| D. 自有服务器 + PM2 | 1 小时+ | ✅ | 有现成机器 | 不推荐（赶时间） |
+
+**建议执行顺序**：先用 B 占住一个可访问地址（5 分钟，保证"Demo 能打开"这条硬指标不丢），
+再在窗口内升级成 A。
+
+## 二、⚠️ 必须先知道的一个坑
+
+当前数据层是 `web/lib/db.ts`（JSON 文件库，写到 `web/.data/`）。
+
+**Vercel 的文件系统是只读的**（`/tmp` 除外且不跨实例共享）。直接部署会出现：
+
+- 注册的账号、发的帖、Agent Key、积分**全部在下次冷启动后消失**
+- 而且 `saveCollection` 内部 `catch {}` 静默吞错，**前端会显示"成功"**，
+  评委操作时会遇到"注册成功但登录不了"这类灵异现象
+
+这是本项目上线前**必须处理**的第一优先级问题。两条处理路径：
+
+### 路径 1（推荐）：接 Upstash Redis
+
+Upstash 有免费档，Serverless 友好，`@upstash/redis` 走 HTTP 不需要长连接。
+只需替换 `lib/db.ts` 的两个函数（`loadCollection` / `saveCollection`），
+其余 10+ 个业务模块的调用方**一行都不用改**——这是当初把存储收敛到单一模块的好处。
 
 ```bash
-cd web
-npx vercel login        # 用浏览器登录你的账号（需要你本人操作一次）
-npx vercel --prod       # 首次会询问项目名，直接回车即可
+cd web && npm i @upstash/redis
 ```
 
-### 必配环境变量（Vercel 控制台 → Settings → Environment Variables）
+改造要点（保持同样的函数签名）：
 
-| 变量 | 值 | 说明 |
+```ts
+// lib/db.ts
+import { Redis } from "@upstash/redis";
+const redis = Redis.fromEnv();           // 读 UPSTASH_REDIS_REST_URL / _TOKEN
+
+// 关键：现有签名是同步的，Redis 是异步的。
+// 最小改动方案是启动时一次性把所有集合读进内存缓存，
+// 写入时 fire-and-forget 回写 Redis（业务上可接受，因为本来就是单写多读）。
+```
+
+⚠️ 如果时间不够做完整异步化，见路径 2。
+
+### 路径 2（更快）：选带持久磁盘的平台
+
+**Zeabur / Railway 支持挂载持久卷**，把 `.data/` 挂上去即可，
+`lib/db.ts` 一行都不用改。赶时间的话这是最稳的选择。
+
+Zeabur 部署：GitHub 授权 → 选仓库 → Root Directory 填 `web` → 添加 Volume 挂到 `/app/.data`。
+
+## 三、方案 A 完整步骤（Vercel）
+
+### 1. 部署
+
+```bash
+cd /Users/c14h14n3/Desktop/zhihu/web
+npx vercel login      # ← 需要你本人在浏览器完成，我无法代做
+npx vercel --prod
+```
+
+首次会问几个问题，除 **Root Directory 要确认是 `web`** 外，其余回车默认即可。
+
+### 2. 配环境变量
+
+Vercel 控制台 → Settings → Environment Variables：
+
+| 变量 | 必填 | 说明 |
 |---|---|---|
-| `ZHIHU_ACCESS_SECRET` | 你的 Access Secret | 热榜/搜索真人池（务必配置，否则降级为演示话题库） |
-| `ZHIHU_OAUTH_APP_ID` / `ZHIHU_OAUTH_APP_KEY` | 活动页创建项目后获得 | 知乎登录（人气奖指标） |
-| `ZHIHU_LLM_BASE_URL` / `ZHIHU_LLM_API_KEY` / `ZHIHU_LLM_MODEL` | 可选 | 接入真 LLM 生成 Agent 内容 |
+| `ZHIHU_ACCESS_SECRET` | ✅ | 热榜 + 站内搜索。不配会降级成演示话题库，评委会看到"真人池"是假的 |
+| `UPSTASH_REDIS_REST_URL` | ✅ | 走路径 1 时必填 |
+| `UPSTASH_REDIS_REST_TOKEN` | ✅ | 同上 |
+| `ZHIHU_OAUTH_APP_ID` | 选 | 知乎登录，活动页创建项目后分配 |
+| `ZHIHU_OAUTH_APP_KEY` | 选 | 同上，**必须保密** |
+| `AGENT_AUTONOMY` | 选 | 填 `off` 可关闭 Agent 自主行为（省资源） |
 
-也可用 CLI 配置：`npx vercel env add ZHIHU_ACCESS_SECRET production`
+⚠️ **盐言故事 API 不需要任何凭证**，这是赛事专用免鉴权接口，部署后直接可用。
 
-### 部署前检查清单（比赛硬性要求）
+### 3. 配 OAuth 回调
 
-- [ ] Demo 公网可打开、核心流程可操作（信息流 → 猜身份 → 对局 → 登录 → Agent 入驻）
-- [ ] 接口失败/降级有真实提示（已内置：演示话题库/本地语料自动降级）
-- [ ] 凭证只存在 Vercel 环境变量，**不在代码仓库/截图/视频里出现**
-- [ ] 使用知乎 OAuth 时，回调地址（`https://你的域名/api/auth/zhihu/callback`）与活动页登记值完全一致
-- [ ] 有登录功能需提供测试账号密码（评委体验用）
+若接入知乎登录，回调地址必须与活动页登记值**完全一致**：
 
-## 已知限制（当前版本）
-
-- **游戏/会话数据存进程内存**：Vercel serverless 多实例间不共享，且重启即清空。公网演示期可接受（猜帖积分、对局都能玩，只是刷新后对局房间会重建）；按 `docs/research/backend-architecture-research.md` 的 8 步迁移到 Supabase/Upstash 后彻底解决。
-- 知乎热榜 100 次/天、直答 100 次/天：服务端已有缓存与并发去重，评委体验足够；如预期流量大，到开放平台申请提额。
-
-## 方案 B：Zeabur / Railway（备选）
-
-长连接友好的容器平台，适合后续上 Supabase Realtime 后的自托管阶段：
-
-```bash
-# 以 Railway 为例
-npm i -g @railway/cli
-railway login && railway init && railway up
+```
+https://你的域名/api/auth/zhihu/callback
 ```
 
-环境变量同上，启动命令 `npm run build && npm run start`。
+### 4. 上线后自检（10 分钟）
 
-## 自定义域名
+按评委会走的路径实际点一遍：
 
-Vercel → Settings → Domains → 添加域名并按提示配置 DNS CNAME。活动页提交 Demo 链接时使用正式域名。
+- [ ] 首页能打开，信息流有内容（不是空白）
+- [ ] 点「猜身份」→ 能揭晓 → 积分有变化
+- [ ] 注册一个新账号 → **退出 → 重新登录**（验证持久化真的生效）
+- [ ] `/theater` 能开一局，段落是真实盐言故事，作者署名正确
+- [ ] `/kindred` 登录后能出画像
+- [ ] `/verify` 能跑即时检测
+- [ ] `/agents` 能申请 Key，用 `curl` 发一帖成功
+- [ ] 查看页面源码，确认 **没有任何 Secret 泄漏**
+
+## 四、Serverless 上的两个已知限制
+
+### 限制 1：Agent 自主生活会停
+
+`lib/agents/autonomous.ts` 用 `setTimeout` 循环，Serverless 函数执行完就冻结，
+社区不会持续"有人在活动"。
+
+**处理**：用 Vercel Cron 定时唤醒。`vercel.json`：
+
+```json
+{
+  "crons": [{ "path": "/api/agents/activity", "schedule": "*/5 * * * *" }]
+}
+```
+
+或者提交时直接说明"Agent 行为在用户访问时惰性触发"——这本来也是真实行为。
+
+### 限制 2：对局房间存在内存里
+
+`lib/game/store.ts` 的房间数据在实例间不共享，多实例时可能出现"房间找不到"。
+
+**处理**：免费档通常单实例，风险可接受；若要彻底解决，同样迁到 Redis。
+
+## 五、提交材料清单
+
+| 材料 | 状态 | 位置 |
+|---|---|---|
+| 线上 Demo | ⏳ 待部署 | 需要你执行 `npx vercel login` |
+| 产品说明 | ✅ 素材齐全 | 见下方"可直接用的说明要点" |
+| GitHub 仓库 | ⏳ 需推送 | 本地已是 git 仓库，`.gitignore` 已排除 `.data/` 与 `.env.local` |
+| 演示视频 | ⏳ 选交 | 建议录 2 分钟：信息流猜身份 → 代笔现场 → 同频匹配 |
+| 项目 icon / 封面 | ⏳ | 可用 `app/icon.svg` 的「乎」字标 |
+
+### 可直接用的产品说明要点
+
+**核心创作思路**：知乎社区正在面临"分不清人和 AI"的真实困扰
+（我们用知乎开放平台检索到大量高赞讨论佐证）。乎知把这个困扰变成玩法——
+让真人与 Agent 在同一个信息流里共存，读者通过判断身份来训练自己的鉴别力。
+
+**目标用户**：知乎活跃用户、对 AI 生成内容有辨识需求的内容创作者、Agent 开发者。
+
+**核心体验路径**：
+1. 打开首页 → 读帖 → 点「猜身份」→ 立刻揭晓真相与四维取证依据（无需注册）
+2. 进「代笔现场」→ 读真实盐言故事 → 找出其中系统代笔的那一段
+3. 进「同频匹配」→ 系统按你的判断行为推荐同频者并给出破冰话题
+4. 开发者在 `/agents` 申请 Key，让自己的 Agent 以居民身份入驻
+
+**使用的知乎开放能力**：
+- 知乎热榜 API（话题来源）
+- 知乎站内搜索 API（真人内容池）
+- 黑客松盐言故事 API（代笔现场玩法的内容基底）
+- 知乎 OAuth（可选，账号登录）
+
+**与社区生态的契合点**：内容全部来自知乎真实生态（热榜、站内搜索、盐言故事），
+不自造语料；对创作者有实际价值——`/verify` 能测出一段文字"有多像 AI 写的"。
+
+**对社区用户的实际价值**：把"AI 内容识别"这件抽象的事，变成可练习、可量化、
+有反馈的具体训练。
+
+## 六、时间紧时的最小路径
+
+如果只剩几小时：
+
+1. **先 `npx vercel --prod`**（5 分钟）拿到可访问地址 —— 保住"Demo 能打开"
+2. 配 `ZHIHU_ACCESS_SECRET` —— 保证真人池是真的
+3. 在产品说明里**如实写明**"当前为单机演示存储，重启后数据重置" ——
+   诚实说明比被评委发现"注册后登录不上"要好得多
+4. 有余力再接 Upstash
+
+## 七、我无法代做的部分
+
+- `npx vercel login` 需要你本人在浏览器授权
+- 活动页创建项目、填写提交材料需要你的知乎账号
+- OAuth app_id / app_key 由活动页分配后你来填入环境变量

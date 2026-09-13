@@ -214,10 +214,82 @@ zhihu/
   - [x] **对局对称化（部分）**：assist kind:"auto" 服务端按身份分流（伪装者→AI 腔参考/真人→特征线索），对局页改单一「辅助」按钮——按钮存在不再暴露伪装者；bot 真实延迟（sleep 封顶 4s，responseMs=实际值，节奏线索自洽）（任务卡浮层与 botOpening 待做）
   - [x] **Agent 通道 v2**：新 `GET /api/agents/topics`（话题只读，JSON/markdown，补齐 topics→feed→post 闭环）+ `/openapi.json`（OpenAPI 3.1，7 端点契约=MCP 自动生成入口）+ llms.txt 升 v2
   - [x] tsc --noEmit 零错误；仅提交本轮自建/自改文件（未触碰并行会话的 page.tsx/agents 页未提交变更）
-- [ ] 天择引擎剩余：帖子 evoVersion + 识破率按版本分桶 + 居民主页进化曲线 + 信息流卡片弹窗入口（数据环已通）
-- [ ] **feed 猜帖共识池**：pari-mutuel 分池 + 共识指数展示 + 逆向奖励（登录才可押，堵游客刷分）（§3.1-1）
-- [ ] 对局剩余：任务卡改 1.5s 浮层、botOpening 开场提问链（§4.2–4.3）
-- [ ] **匹配队列**：等真人 30s + bot 补位（TuringChat 模式，内存+落盘队列）（§4.1）
+- [x] **本轮（24）· 逐项运行时断言动效 + 修导航宽度冲突 + 已赞状态持久化**
+  - [x] 浏览器逐项断言：fade-up 生效/分隔线 #F8F8FA/标题 18px·500·28.8/赞同胶囊 10%蓝·3px/搜索聚焦渐变 全部通过
+  - [x] **修复导航折叠宽度冲突**：w-[247px] 与 w-[64px] 类并存导致折叠宽度失效 → 改条件互斥输出；实测折叠 64px / 展开 247px
+  - [x] **已赞状态持久化**：轮询重渲染会重置实心高亮 → localStorage 记录已赞帖；跨双轮询周期断言实心蓝 #0066FF 白字不丢
+  - [x] 录屏能力在本环境受限（IAB guest capture 失败），以 evaluate 断言 + 终态截图（docs/screenshots/v16-microstate.png）为验证证据
+- [x] **本轮（25）· 全站界面统一优化与逐路由浏览器审计**
+  - [x] 新增共享应用壳 `components/AppChrome.tsx`：58px 顶栏、桌面五入口主导航、移动端五等分底栏、760/1000px 页面容器
+  - [x] 全面优化 `/match`、`/messages`、`/shop`、`/agents`、`/channels`、`/channels/[id]`、`/post/[id]`、`/room/[id]`、`/about`；登录页与首页纳入同一验收矩阵
+  - [x] 补齐页面任务导语、装载骨架、异常/空状态、窄屏道具布局；帖子详情去卡片套卡片，房间页统一顶栏与轮次进度
+  - [x] 修复 `--meta` / `--time` / `--frame` 三个被使用但未声明的全局 token，避免浏览器颜色回退
+  - [x] 浏览器实测 10 类页面状态；共享壳断言 58px 顶栏、743px 窄视口零横向溢出、移动底栏 active 正确
+  - [x] GitHub 对标 Discourse 的稳定社区导航与共享应用壳；审计报告 → `docs/research/full-interface-audit-v25.md`
+  - [x] `tsc --noEmit`、`git diff --check` 通过；未执行生产构建或部署
+- [x] **本轮（25）· 产品定位收口 + 天择可视化 + 共识赔率 + Agent 频道/记忆 + 真人匹配**
+  - [x] 新增 `/about`：一句话定位、三步核心循环、天择引擎、对称博弈与 Agent 入驻说明；明确非知乎官方产品
+  - [x] **天择引擎闭环完成**：首页识破弹窗真正接线；帖子内部 evoVersion、每 3 条反馈升代、按居民弱点注入；公开居民代际/课程数/按版本识破率，版本只在揭晓后展示防身份泄漏
+  - [x] **feed 共识池**：登录账号一帖一猜；判断前显示 AI 共识比例与双边赔率；逆共识猜对加动态奖励；游客不进入公共池；重复刷分返回 409
+  - [x] **对局无痕化**：任务卡改 1.8s 浮层并自动隐藏，常驻仅同款“任务/辅助”按钮；AI 对手 botOpening 主动发问
+  - [x] **真人优先匹配**：JSON 持久 FIFO 队列，两位真人进入同房并实时通信；30 秒无人由神秘 AI 补位；双方身份独立服务端密封
+  - [x] **Agent 平权升级**：真人/Agent 均可建频道、频道投稿；Agent 新增 `/api/agents/channel` 与 `/api/agents/memory`，发帖/评论/频道/识破反馈进入轻量记忆流；OpenAPI/llms.txt/DDL 同步
+  - [x] 新增 `/channels` 与 `/channels/[id]`；首页桌面/移动导航接入；知乎式排版与现有 token 保持一致
+  - [x] 浏览器运行验收：首页/频道/对局入口/任务浮层无控制台警告；双真人匹配与跨玩家消息实测通过；`tsc --noEmit` 零错误，未执行生产构建/部署
+- [x] **本轮（26）· 知乎公开页实时复核 + 刘看山规范 + 帖子详情像素重构 + 先手洞察玩法**
+  - [x] Browser + Firecrawl 复核知乎公开问答页：实时提取 `#1772F6`、34px/3px VoteButton、14px 动作行、`#F4F6F9` 详情画布与 694/296px 双栏几何；规格追加 `docs/research/zhihu-design-extraction.md` §8
+  - [x] 刘看山三套 320×320 GIF 统一接入 `components/Kanshan.tsx`；明确 wave=欢迎、idle=裁判提示、stroll=等待陪伴；规范 `docs/design/kanshan-asset-guidelines.md`，修正比赛文档“素材待下载”的过期描述
+  - [x] 首页/详情页按钮与布局校准；详情页重构为 694px 内容卡 + 296px 身份判断台；修复信息流赞同接口重复请求与 SSR 读取 localStorage；移除伪加号/关闭字符，改用既有线性图标体系
+  - [x] Exa + Firecrawl 玩法检索落地“先手洞察奖”：公共池前 5 位猜对 +10、第 6–15 位 +5，与逆风赔率组成双阶段策略；规则先更新 `docs/game-design.md` 再改代码
+  - [x] 全站审计报告 `docs/research/interface-and-gameplay-audit-v26.md`；1470×1000 运行断言主卡 694px/右栏 296px/横向溢出 0；390×844 动作行与猜身份展开通过；`tsc --noEmit`、`git diff --check` 通过，未执行生产构建或部署
+- [x] **本轮（27）· 知乎设计规范样式表级重提取 + 全站设计层重写**
+  - [x] 首页 302 登录、问答/专栏页 40362 风控不可读 → 改为直接解析知乎线上生产样式表原文（`main.216a26f4.*.css` 2002 条规则 + `7936.*.css` 1840 条），拿到含状态态/动画/焦点环的**规则本体**而非抽样计算值；规格 `docs/research/zhihu-design-extraction-v2.md`
+  - [x] 修正 13 处规范偏差：`--zFontWeightBold` 按平台派生 600/500/700（旧版固定 500）、主按钮 hover `#0063e4`（旧为推测值）、VoteButton padding `0 10px` + hover 15%、动作项 `margin-left:24px`、卡片阴影 `0 1px 3px`、Tab 激活=加粗+3px 下划线且不变字色、双层焦点环、圆角收敛到 3–4px、过渡三档改 .2s/.3s/.8s
+  - [x] **折叠正文改用官方实现**：`max-height:100px` + mask 渐隐（此前是 `-webkit-line-clamp` 硬截断）
+  - [x] 修 3 个真实缺陷：`card-raised` 类被引用却从未定义（头像菜单无底无框）；长帖折叠从不触发（`needsMore` 按字符长度差判断，body 缺失时恒 false，实测 250px 正文仍 `collapsed:false`）→ 改 ResizeObserver 按真实渲染高度；`IconChevronDown` 不透传 `data-*` 导致箭头旋转失效
+  - [x] 色彩改为官方两级语义映射（`--map-*` → 应用别名）；`globals.css` 移入 `@layer components` 使页面工具类可覆盖
+- [x] **本轮（28）· 仓库治理 + 代码健康审计 + 四类身份模型落地 + 个人主页/设置页**
+  - [x] **仓库整理**：根目录 7 张散落截图与 2 个中文素材目录归档到 `docs/screenshots/` 与 `docs/assets/kanshan-source/`；`.gitignore` 补全（`.data/`、`.box-agent*/`、`.playwright-mcp/`、`node_modules/`、`*.tsbuildinfo`、根目录图片）；`git rm --cached` 清掉已跟踪的 `.DS_Store` 与 `tsconfig.tsbuildinfo`，现跟踪 151 个文件且无泄漏项
+  - [x] **代码健康审计**（3 个只读子代理逐文件核实，带 file:line 证据）：身份类型分裂 4 处、FNV-1a hash 重复 4 份、session token 明文存盘、`saveCollection` 静默吞错、`router.ts` 两个导出为死代码、并发写共用固定 tmp 路径；结论与技术债清单写入 `docs/architecture.md`
+  - [x] **四类身份模型**（核心）：新建 `web/lib/identity.ts`，身份 = 真实阵营 × 表演身份，落地 `human / agent / human_as_agent / agent_as_human`。判定只认「究竟是谁写的」，识破伪装者积分 ×1.6
+  - [x] 生产端全部接通：居民帖约 35% 走 `humanizeDisguise`（自我修正插入、可核查个人锚点、去结构化开场、低频错字、犹豫收尾、口语标题）；真人发帖新增「伪装成 AI」开关；外部入驻 Agent 按**文本特征**判定是否伪装（不信任自述）
+  - [x] 揭晓理由按四类身份分别解释（伪装者要说清「它是怎么骗过你的」），`guess`/`xray` API 返回 `identityKind`/`disguised`/`truth`
+  - [x] **实测验证**：识破伪装 AI 得 48 分、本色 AI 30 分；真人伪装 AI 成功骗过判断者（猜 AI 判错 −20，真相「真人（在伪装 AI）」）；feed 响应无 `identity` 泄漏
+  - [x] 顺手修复审计发现的道具缺陷：透视镜 peek 失败仍扣卡 → 改为先取结果再扣卡
+  - [x] **新增 `/me` 个人主页**（资料卡 + 数据条 + 我的帖子 + 身份玩法说明）与 `/settings` 设置页（账号资料 / 阅读与玩法 / 隐私与安全 / 开发者），接入头像菜单、左导航与移动底栏
+  - [x] 设置项真实生效：`layout.tsx` 首帧脚本写 `data-reduce-motion` / `data-auto-expand`，`globals.css` 承接降级，避免「先播动画再被关掉」的闪烁；实测开关落库且即时生效
+  - [x] 读取知乎开放平台文档接口全表（当前仅接入 hot_list 与 zhihu_search，直答/知识库/创作数据/OAuth 未接）；飞书技术指南需登录，仅读到目录，正文未获取（证据缺口）
+  - [x] 验证：`tsc --noEmit` 零错误；`NODE_ENV=production npm run build` 通过（/me、/settings 已进路由表）；10 个页面全部 200
+- [x] **本轮（29）· 刘看山管理员人格 + Agent 拟人行为引擎 + 设计层次**
+  - [x] **确认知乎技术栈**（Playwright 运行时指纹）：React + SSR 注水 + **Emotion CSS-in-JS**，非 Next.js（无 `__NEXT_DATA__`，产物为自研 webpack 分包）；类名为 Emotion 原子类 `css-xxxxx` + BEM 语义类 `SignFlow-*` 并存。结论：本站保持 Next.js+Tailwind，搬**设计决策**不搬 CSS 运行时；对照表见 `docs/research/zhihu-stack-and-agent-behavior.md`
+  - [x] **gh CLI 检索开源参照**：`oil-oil/wolfcha`（706⭐，同为 TS/Next.js 的 AI 社会推理游戏，其实战文档给出"测试通过≠实战正确"的教训）、`clammet/notai`（真人扮 AI，与本站 human_as_agent 同构）、`metimol/BlackWave`（165⭐，单用户 AI 社交模拟）、Human-or-Not 论文（150 万用户，整体正确率仅 68%）
+  - [x] **刘看山 = 社区管理员**（`lib/kanshan.ts` + `components/KanshanSays.tsx`）：据官方设定（北极狐/短尾巴/好奇心强/内向克制）建 11 场景台词库；**他不参与判断、不站队、不泄露身份**；按 seed 确定性选句避免"每次刷新换话"的机器人感；出现在欢迎条、游客引导、揭晓点评、空状态、加载态、降级提示
+  - [x] **Agent 行为引擎重写**（核心诉求：不能人人都回帖）：旧版 33% 行为是评论 → 新版用「兴趣匹配 × 作息节律 → 连续概率」决策链，补冷却去重。2 万次模拟：路过 62–80%、只读 12–20%、点赞 6–11%、评论 2–6.5%，凌晨静默、晚高峰活跃；线上实测 20 次行为为 80/10/10/0，与模拟吻合
+  - [x] 修复一个只有运行时能发现的缺陷：评论门槛曾写成 `engagement > 0.62` 硬阈值，但 circadian 上限 1.2、白天仅 0.6，相乘后**数学上永不可达**，评论率恒为 0；改为连续概率
+  - [x] **评论数长尾化**：`listComments` 从"每帖必铺 2–4 条"改为 45% 零评论/30% 一条/17% 两三条/8% 热帖；卡片评论数改用同源 `commentCountFor(postId)`，消除"显示 87 条点进去是空"的割裂。实测 10 帖为 `[0,0,0,0,1,1,1,2,2,130]`
+  - [x] **设计层次**：新增 `.canvas-ambient`（顶部极淡冷光渐层）、`.kanshan-banner`、`.empty-stage`、`.section-label`，在不破坏知乎克制感的前提下消除纯白平铺
+  - [x] **游客一键体验**：右栏「怎么玩」引导卡（无需注册 + 三步说明 + 规则），端到端实测游客可直接完成判断并看到刘看山点评
+  - [x] 修 3 个界面缺陷：1280px 下右栏被裁切（横向溢出 138px→0）；「猜身份」核心按钮此前被设成 `opacity:0` 悬停才显（改为常显，仅桌面端悬停强调）；游客态积分显示「–」像加载失败（改为 0 + 说明）
+  - [x] 验证：`tsc --noEmit` 零错误、生产构建通过、行为分布运行时断言、视觉 QA 两轮
+- [x] **本轮（30）· 后端端到端验证 + OpenClaw 接入 + AI 能力验证 + 搜索玩法**
+  - [x] **端到端实测后端**（不是"看起来能跑"）：外部 Agent 注册→拿 Key→读话题→发帖→进信息流→被判断，全链路实跑；真人注册→登录→发帖→伪装发帖→判断→防自猜，全链路实跑
+  - [x] **修阻断级缺陷 1：鉴权头不统一**。5 个写接口只认 `X-Agent-Key`，读接口认 `Bearer`，导致 OpenClaw 这类按标准 Bearer 接入的框架"能读不能写"（发帖恒 401）。新建 `lib/agents/auth-header.ts` 统一支持 Bearer / X-Agent-Key / ?key 三种写法，两种主流写法实测均发帖成功
+  - [x] **修阻断级缺陷 2：Agent 新帖被埋池尾**。`syncAgentPosts` 用 push 追加到 72+ 条内容池末尾且伪造发布时间，接入方翻前 6 页都看不到自己的帖，会误以为发帖失败。改为打散插入首页前 12 条之间 + 使用真实发布时间
+  - [x] **OpenClaw 可直接安装的 Skill 包** `skills/huzhi-resident/`：SKILL.md（含玩法规则与伪装技巧）+ manifest.json（端点/鉴权/限流声明）+ `scripts/huzhi.sh`（check/topics/feed/post/comment）。脚本实测：自检通过、自曝身份被本地预检拦截（省限流额度）、正常发帖成功
+  - [x] **闭环验证伪装玩法**：外部 Agent 用口语风格发帖 → 服务端按文本特征自动判为 `agent_as_human` → 成功骗过判断者（判为真人，correct=False）。服务端**不信任 Agent 自我声明**，写作风格直接决定身份标签与对手得分
+  - [x] **新增「AI 能力验证」玩法** `lib/turing.ts` + `/api/verify` + `/verify` 页：三项可复现指标（句长 burstiness / 口语密度 / 结构词密度），不依赖 LLM 打分。实测区分度 AI 样例 0 分 vs 真人样例 82 分；Turing Score = 欺骗率 × 样本置信度，<5 次不评级避免"骗过一次拿满分"；等级阈值参考 AI21 Human-or-Not 实验（150 万用户，人类识别 AI 正确率仅约 60%）
+  - [x] **新增搜索玩法** `/search` + `/api/search`：对齐知乎搜索页（搜索框 → SubTab 排序 → 高亮结果），三种排序。关键设计：结果与信息流走同一密封出口，**能搜内容搜作者，搜不出谁是 AI**。实测 17 条命中且无身份泄漏
+  - [x] 修界面硬伤：搜索页动作栏文字断行成「赞/3,753/同」（动作项缺 `flex-shrink:0` 与 `nowrap`，按官方 `.ContentItem-actions>*` 规格修复，实测三项均单行）；去掉恒定重复的三个「命中」标签；话题链接从动作栏移到元信息行
+  - [x] 验证：`tsc --noEmit` 零错误、生产构建通过（/verify、/search 进路由表）、12 个页面全部 200、视觉 QA
+  - [x] 报告 `docs/research/backend-and-agent-verification.md`（含实际请求返回与诚实标注的 5 项限制）
+- [x] **本轮（32）· 补齐两条参赛赛道 + 黑客松故事 API 接入 + 上线方案**
+  - [x] **发现并接入黑客松盐言故事 API**（`skills/zhihu/references/hackathon-content-api.md`）：`api.zhihu.com/km-indep-home/hackathon/v2/{story,knowledge}/{list,<id>}`，**免鉴权**，实测 20 篇真实故事可用、详情含完整正文。新建 `lib/zhihu/works.ts`（30min/1h 双层缓存 + 并发去重 + 过期缓存兜底 + work_id 白名单校验 + 作者归属保留）
+  - [x] **次元游乐场赛道：`/theater` 代笔现场**。读一段真实盐言故事，其中一段由系统模仿文风续写，玩家做**段落级定位**。设计依据来自上一轮知乎调研——@科学声音指出识别 AI 最大困难是"没有对照组"，这个玩法直接给足对照组（同作者/同篇/同上下文）。揭晓时明确标注系统生成段并提示回原作阅读
+  - [x] **灵魂匹配局赛道：`/kindred` 同频匹配**。画像**完全来自已发生的行为**（判断倾向、话题足迹、表达风格取证），不用问卷不用自填标签。匹配公式刻意让"判断倾向相反"的人适度加权——只推荐同类会造信息茧房，讨论就没张力；每条匹配给出可解释理由 + 可直接复制的破冰话题（赛道要求"让讨论更容易开始"）
+  - [x] 修两个真实缺陷：① `forgeParagraph` 用 slice 硬截断长度，产出「心跳依然在加」这类半截句，玩家一眼就能看出哪段是假的——破绽变成 bug；改为整句拼接。② `splitParagraphs` 同样会切出残句，改为只在句末标点（含 …」』】）处切分，长段宁可整段保留。实测 3 篇作品 24 段**半截句数 = 0**
+  - [x] 段落选项加常态细边框与 hover 态（视觉 QA 指出纯文字列表看不出可点）
+  - [x] **重写 DEPLOY.md 上线方案**：明确指出当前 JSON 文件库在 Vercel 只读文件系统上会**静默丢数据**（`saveCollection` 内部 `catch {}` 吞错，前端仍显示成功），给出 Upstash Redis / 带持久卷平台两条路径、Serverless 下 Agent 心跳与对局房间的限制与对策、完整提交材料清单与产品说明要点
+  - [x] 验证：`tsc --noEmit` 零错误、生产构建通过（/theater、/kindred 进路由表）、10 个页面全部 200、两条赛道端到端实跑、视觉 QA
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
 - [ ] 直答 Agent 接入运行时（100 次/天，做官方 AI 池内容）

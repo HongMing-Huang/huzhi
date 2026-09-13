@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { IconDice } from "@/components/Icons";
 import { useRouter } from "next/navigation";
+import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
+import Kanshan from "@/components/Kanshan";
 
 interface Topic {
   id: string;
@@ -26,6 +28,14 @@ export default function Match() {
   const [topicId, setTopicId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [ticketId, setTicketId] = useState<string | null>(null);
+  const [waited, setWaited] = useState(0);
+
+  function browserUid() {
+    let value = localStorage.getItem("huzhi_uid");
+    if (!value) { value = crypto.randomUUID(); localStorage.setItem("huzhi_uid", value); }
+    return value;
+  }
 
   useEffect(() => {
     const pre = new URLSearchParams(window.location.search).get("topic");
@@ -67,29 +77,63 @@ export default function Match() {
     }
   }
 
+  async function matchHuman() {
+    const n = name.trim();
+    if (!n) return setErr("先给自己起个名号");
+    setBusy(true); setErr(""); setWaited(0);
+    const res = await fetch("/api/matchmaking", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "join", name: n, topicId, uid: browserUid() }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setErr(data.error ?? "匹配失败"); setBusy(false); return; }
+    if (data.status === "matched") {
+      localStorage.setItem(`tb_pid_${data.roomId}`, data.playerId);
+      router.push(`/room/${data.roomId}`); return;
+    }
+    setTicketId(data.ticketId); setBusy(false);
+  }
+
+  useEffect(() => {
+    if (!ticketId) return;
+    const started = Date.now();
+    const timer = setInterval(async () => {
+      const seconds = Math.floor((Date.now() - started) / 1000);
+      setWaited(seconds);
+      const uid = browserUid();
+      let res = await fetch(`/api/matchmaking?ticketId=${ticketId}&uid=${uid}`, { cache: "no-store" });
+      let data = await res.json();
+      if (data.status === "waiting" && seconds >= 30) {
+        res = await fetch("/api/matchmaking", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "fallback", ticketId, uid }) });
+        data = await res.json();
+      }
+      if (data.status === "matched") {
+        clearInterval(timer);
+        localStorage.setItem(`tb_pid_${data.roomId}`, data.playerId);
+        router.push(`/room/${data.roomId}`);
+      }
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [ticketId, router]);
+
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-[color:var(--line)] bg-white">
-        <div className="mx-auto flex h-14 max-w-[1100px] items-center gap-4 px-4">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="logo-script text-[26px] leading-none">乎知</span>
-            
-          </Link>
-          <span className="text-sm text-[color:var(--muted)]">灵魂对局 · 1v1 互猜身份</span>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-[820px] px-4 py-8">
+      <AppHeader title="灵魂对局" right={<Link href="/messages" className="btn btn-plain">对局记录</Link>} />
+      <PageFrame>
+        <section className="page-lead pt-1">
+          <p className="page-kicker">1v1 无痕身份博弈</p>
+          <h1 className="page-title">只凭对话，判断对面到底是谁</h1>
+          <p className="page-summary">真人可能在装 AI，AI 也会追问你的经历。按钮、辅助和下注界面对双方完全相同。</p>
+        </section>
         <div className="card p-6 sm:p-8">
           <div className="flex items-start gap-4">
             <div className="min-w-0 flex-1">
-              <h1 className="display text-2xl">开一局灵魂对局</h1>
-              <p className="mt-2 text-sm text-[color:var(--muted)]">
-                你和对手围绕同一话题聊 3–5 轮，然后互猜对方是 AI 还是真人，押上积分开牌。
+              <h2 className="text-lg font-medium">选择名号与话题</h2>
+              <p className="mt-2 text-sm text-[color:var(--meta)]">
+                先匹配真人；30 秒没人就由神秘对手补位。对方可能是真人、AI，或正在伪装 AI 的真人。
               </p>
             </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/kanshan/stroll.gif" alt="刘看山在散步" className="hidden h-24 w-24 object-contain sm:block" loading="lazy" />
+            <Kanshan variant="stroll" size={96} alt="刘看山陪你等待对手" className="hidden sm:block" />
           </div>
 
           <div className="mt-6">
@@ -99,57 +143,70 @@ export default function Match() {
               onChange={(e) => setName(e.target.value)}
               maxLength={20}
               placeholder="例：赛博柯南"
-              className="mt-1.5 w-full rounded border border-[color:var(--line)] px-3 py-2.5 text-sm outline-none focus:border-[color:var(--zhihu)]"
+              className="field mt-1.5 px-3 py-2.5 text-sm"
             />
           </div>
 
           <div className="mt-5">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">话题</label>
-              <span className={`text-xs ${data?.source === "zhihu-hot" ? "text-[color:var(--ok)]" : "text-[color:var(--gold)]"}`}>
+              <span className={`text-[13px] ${data?.source === "zhihu-hot" ? "text-[color:var(--ok)]" : "text-[color:var(--gold)]"}`}>
                 {data?.source === "zhihu-hot" ? "知乎热榜 · 实时" : "演示话题库"}
               </span>
             </div>
-            {data?.degraded && data.reason && <p className="mt-1 text-xs text-[color:var(--gold)]">{data.reason}</p>}
+            {data?.degraded && data.reason && <p className="mt-1 text-[13px] text-[color:var(--gold)]">{data.reason}</p>}
             <div className="mt-2 max-h-72 space-y-1 overflow-auto pr-1">
               {(data?.topics ?? []).map((t, i) => (
                 <button
                   key={t.id}
                   onClick={() => setTopicId(t.id === topicId ? null : t.id)}
+                  data-picked={topicId === t.id}
                   className={`flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm transition ${
-                    topicId === t.id ? "bg-[color:var(--zhihu)]/8 text-[color:var(--zhihu)]" : "hover:bg-black/[0.03]"
+                    topicId === t.id ? "bg-[rgba(23,114,246,.08)] text-[color:var(--zhihu)]" : "hover:bg-[color:var(--frame)]"
                   }`}
                 >
-                  <span className={`rank ${i < 3 ? `rank-${i + 1}` : ""} w-5 text-center`}>{i + 1}</span>
+                  <span className="hot-rank !w-5 !text-[15px]" data-top={i < 3}>{i + 1}</span>
                   <span className="truncate">{t.title}</span>
                 </button>
               ))}
-              {!data && <p className="py-4 text-center text-sm text-[color:var(--muted)]">加载中…</p>}
+              {!data && <p className="py-4 text-center text-sm text-[color:var(--time)]">加载中…</p>}
             </div>
-            <p className="mt-1.5 text-xs text-[color:var(--muted)]">不选 = 随机盲盒身份 + 随机话题。</p>
+            <p className="mt-1.5 text-[13px] text-[color:var(--time)]">不选 = 随机盲盒身份 + 随机话题。</p>
           </div>
 
-          {err && <p className="mt-3 text-sm text-[color:var(--danger)]">{err}</p>}
-          <div className="mt-5 flex gap-3">
-            <button onClick={() => start(false)} disabled={busy} className="btn btn-primary px-6 py-2.5 text-sm">
-              用选中话题开局
+          {err && <p className="mt-3 text-sm text-[color:var(--like)]">{err}</p>}
+          {ticketId && (
+            <div className="mt-5 rounded bg-[rgba(23,114,246,.06)] p-4 text-center">
+              <p className="text-sm font-medium text-[color:var(--zhihu)]">正在寻找同一话题下的真人对手</p>
+              <p className="mt-1 text-[13px] text-[color:var(--meta)]">已等待 {waited} 秒 · 30 秒后神秘对手自动补位，来源不会提前揭晓</p>
+              <div className="mx-auto mt-3 h-1 w-48 overflow-hidden rounded-full bg-white"><span className="block h-full bg-[color:var(--zhihu)] transition-[width] duration-300 ease-out" style={{ width: `${Math.min(100, (waited / 30) * 100)}%` }} /></div>
+            </div>
+          )}
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button onClick={matchHuman} disabled={busy || Boolean(ticketId)} className="btn btn-primary">
+              真人优先匹配
             </button>
-            <button onClick={() => start(true)} disabled={busy} className="btn btn-outline px-6 py-2.5 text-sm">
-              <IconDice size={15} /> 抽盲盒开局
+            <button onClick={() => start(false)} disabled={busy} className="btn btn-primary">
+              立即神秘开局
             </button>
-            <Link href="/" className="btn btn-plain px-4 py-2.5 text-sm">回社区</Link>
+            <button onClick={() => start(true)} disabled={busy} className="btn btn-outline">
+              <IconDice size={15} /> 随机话题
+            </button>
+            <Link href="/" className="btn btn-plain">回社区</Link>
           </div>
         </div>
 
         <div className="card mt-4 p-5 text-sm text-[color:var(--ink-2)]">
           <b>对局规则</b>
-          <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-[color:var(--muted)]">
-            <li>开局随机抽身份：伪装者要全程装 AI，纯真人要稳住人味。</li>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-[color:var(--meta)]">
+            <li>真人优先匹配；30 秒后神秘对手补位，对手来源在开牌前密封。</li>
+            <li>真人可能抽到伪装任务：全程装 AI；AI 也会主动提问、追问经历。</li>
             <li>聊满 2 轮后可锁定猜测（猜对方是 AI / 真人 / 伪装者）并押注 50 / 200 / 全押。</li>
             <li>双方锁定后开牌：猜中识破 +80/+30，伪装成功 +50，误判 −20，赢家通吃注池。</li>
           </ol>
         </div>
-      </main>
+      </PageFrame>
+      <MobileDock />
     </>
   );
 }

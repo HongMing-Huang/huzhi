@@ -6,6 +6,7 @@ import Link from "next/link";
 import ChatWindow from "@/components/ChatWindow";
 import { personaById } from "@/lib/ai/personas";
 import { IconMask, IconRobot, IconUser as IconUserIco, IconSearch as IconSearchIco } from "@/components/Icons";
+import { AppHeader } from "@/components/AppChrome";
 import type { ClientRoom, GuessKind } from "@/lib/game/types";
 
 interface Clue {
@@ -32,6 +33,7 @@ export default function RoomPage() {
   const [assistNote, setAssistNote] = useState("");
   const [suggestions, setSuggestions] = useState<string[] | null>(null);
   const [pid, setPid] = useState("");
+  const [showMission, setShowMission] = useState(true);
 
   const fetchState = useCallback(async () => {
     if (!pid) return;
@@ -74,6 +76,13 @@ export default function RoomPage() {
       if (fallback) clearInterval(fallback);
     };
   }, [pid, fetchState]);
+
+  useEffect(() => {
+    if (!data?.roomId) return;
+    setShowMission(true);
+    const timer = setTimeout(() => setShowMission(false), 1800);
+    return () => clearTimeout(timer);
+  }, [data?.roomId]);
 
   async function post(path: string, body: Record<string, unknown>) {
     setBusy(true);
@@ -130,16 +139,11 @@ export default function RoomPage() {
 
   if (fatal) {
     return (
-      <main className="grid min-h-screen place-items-center px-5 text-center">
-        <div>
-          <p className="text-[color:var(--muted)]">{fatal}</p>
-          <Link href="/" className="btn btn-primary mt-4 inline-block px-6 py-2.5">回社区</Link>
-        </div>
-      </main>
+      <><AppHeader title="灵魂对局" /><main className="page-frame grid place-items-center text-center"><div><h1 className="text-lg font-medium">这场对局已经结束</h1><p className="mt-2 text-sm text-[color:var(--meta)]">{fatal}</p><Link href="/match" className="btn btn-primary mt-5 inline-block px-6 py-2.5">重新开一局</Link></div></main></>
     );
   }
   if (!data) {
-    return <main className="grid min-h-screen place-items-center text-[color:var(--muted)]">对局装载中…</main>;
+    return <><AppHeader title="灵魂对局" /><main className="page-frame"><div className="space-y-4 py-5" aria-label="对局装载中"><div className="skeleton h-4 w-full" /><div className="skeleton h-[320px] w-full" /><div className="skeleton h-20 w-full" /></div></main></>;
   }
 
   const me = data.you;
@@ -149,59 +153,61 @@ export default function RoomPage() {
   const chatting = data.phase === "chat";
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pb-10">
-      {/* 顶栏 */}
-      <header className="sticky top-0 z-20 -mx-4 border-b border-[color:var(--line)] bg-white px-4 py-2.5">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-sm text-[color:var(--muted)] hover:text-[color:var(--ink)]">‹ 退出</Link>
-          <div className="min-w-0 flex-1 text-center">
-            <p className="truncate text-sm font-medium">{data.topic.title}</p>
-            <div className="mt-1 flex items-center justify-center gap-1.5">
-              {Array.from({ length: data.maxRounds }).map((_, i) => (
-                <span key={i} className={`h-1.5 w-5 rounded-full ${i < data.round ? "bg-[color:var(--zhihu)]" : "bg-[color:var(--line)]"}`} />
-              ))}
-              <span className="tnum ml-1 text-xs text-[color:var(--muted)]">{data.round}/{data.maxRounds} 轮</span>
-            </div>
-          </div>
+    <>
+      <AppHeader title="灵魂对局" right={
+        <div className="flex items-center gap-2">
           <div className="chip flex items-center gap-1 px-2.5 py-1 text-sm tnum">
             <b>{me.bank}</b>
             <span className="text-[10px]">积分</span>
           </div>
+          <button onClick={() => setShowMission(true)} className="btn btn-plain border border-[color:var(--line)] ">
+            任务
+          </button>
         </div>
-      </header>
-
-      {/* 身份任务卡 */}
-      <section
-        className="card fade-up mt-4 p-5"
-        style={{
-          borderColor: disguised ? "#f0c7ec" : "#bfe6f2",
-          background: disguised ? "#fdf5fc" : "#f2fafd",
-        }}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="display text-xl">
-              {disguised ? "你的任务：装成 AI" : "你的任务：揪出伪装"}
-            </h1>
-            {disguised && persona && (
-              <p className="mt-1.5 text-sm text-[color:var(--muted)]">
-                人设卡：<b className="text-[#b03aa0]">{persona.name}</b> —— {persona.blurb}
-              </p>
-            )}
-            <p className="mt-1.5 text-xs text-[color:var(--muted)]">
-              {disguised
-                ? "禁止自曝身份。撑到开牌没被识破 +50，还能赢下整池注金。"
-                : "对面可能是装人的 AI、装 AI 的人，或另一个真人。聊满 2 轮可锁定猜测并下注。"}
-            </p>
-          </div>
-          <span
-            className="shrink-0 rounded px-2 py-1 text-xs font-bold"
-            style={{ background: disguised ? "#f7e3f5" : "#e0f2fa", color: disguised ? "#b03aa0" : "#0a7ea4" }}
+      } />
+      {/* 对局话题：完整展示，不再塞进顶栏被截断 */}
+      <div className="mx-auto max-w-[760px] px-5 pt-4">
+        <p className="text-[13px] text-[color:var(--time)]">本局话题</p>
+        <h1 className="mt-1 text-[17px] font-medium leading-[26px] text-[color:var(--ink)]">
+          {data.topic.title}
+        </h1>
+        {data.topic.url && (
+          <a
+            href={data.topic.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 inline-block text-[13px] text-[color:var(--zhihu)] hover:text-[color:var(--link-deep)]"
           >
-            {disguised ? "伪装者" : "纯真人"}
+            在知乎查看原问题 ›
+          </a>
+        )}
+      </div>
+
+      {/* 轮次进度：光有色条读者不知道在表示什么，补一句说明 */}
+      <div
+        className="mx-auto mt-3 max-w-[760px] px-5"
+        aria-label={`第 ${data.round} 轮，共 ${data.maxRounds} 轮`}
+      >
+        <div className="flex items-center gap-2">
+          {Array.from({ length: data.maxRounds }).map((_, i) => (
+            <span
+              key={i}
+              className={`h-1 flex-1 rounded-full transition-colors ${i < data.round ? "bg-[color:var(--zhihu)]" : "bg-[color:var(--line)]"}`}
+            />
+          ))}
+          <span className="tnum ml-1 shrink-0 text-xs text-[color:var(--time)]">
+            {data.round}/{data.maxRounds} 轮
           </span>
         </div>
-      </section>
+        <p className="mt-1.5 text-[13px] text-[color:var(--time)]">
+          {data.phase === "reveal"
+            ? "已开牌"
+            : data.round < 2
+              ? `对话进度 · 聊满 2 轮后可以下注（还差 ${2 - data.round} 轮）`
+              : "对话进度 · 现在可以锁定判断并下注"}
+        </p>
+      </div>
+      <main className="mx-auto max-w-[760px] px-5 pb-10">
 
       {/* 聊天窗口（新设计） */}
       <ChatWindow
@@ -223,7 +229,7 @@ export default function RoomPage() {
       {/* 辅助工具行（对称：双方同一按钮，服务端按身份给不同内容） */}
       {chatting && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button onClick={assist} disabled={busy} className="btn btn-plain border border-[color:var(--line)] px-3 py-1.5 text-xs">
+          <button onClick={assist} disabled={busy} className="btn btn-plain border border-[color:var(--line)] ">
             <IconSearchIco size={14} className="inline" /> 辅助
           </button>
           {data.opponent.hasGuessed && !me.guess && (
@@ -231,16 +237,16 @@ export default function RoomPage() {
           )}
         </div>
       )}
-      {err && <p className="mt-2 text-sm text-[color:var(--danger)]">{err}</p>}
+      {err && <p className="mt-2 text-sm text-[color:var(--like)]">{err}</p>}
 
-      {assistNote && <p className="mt-2 text-xs text-[color:var(--muted)]">{assistNote}</p>}
+      {assistNote && <p className="mt-2 text-xs text-[color:var(--meta)]">{assistNote}</p>}
       {clues && (
         <div className="card mt-3 space-y-2 p-4 text-sm">
           <p className="text-xs font-bold text-[color:var(--zhihu)]">线索（不构成结论）</p>
           {clues.map((c) => (
             <p key={c.label}>
               <span className="font-bold">{c.label}：</span>
-              <span className="text-[color:var(--muted)]">{c.detail}</span>
+              <span className="text-[color:var(--meta)]">{c.detail}</span>
             </p>
           ))}
         </div>
@@ -249,7 +255,7 @@ export default function RoomPage() {
         <div className="card mt-3 space-y-1.5 p-4 text-sm">
           <p className="text-xs font-bold text-[#b03aa0]">AI 腔参考（禁止直接复制发送）</p>
           {suggestions.map((s, i) => (
-            <p key={i} className="text-[color:var(--muted)]">- {s}</p>
+            <p key={i} className="text-[color:var(--meta)]">- {s}</p>
           ))}
         </div>
       )}
@@ -258,7 +264,7 @@ export default function RoomPage() {
       {chatting && (
         <section className="felt mt-4 rounded p-5">
           {me.guess ? (
-            <p className="text-center text-sm text-[color:var(--muted)]">
+            <p className="text-center text-sm text-[color:var(--meta)]">
               已锁定：猜「{IDENTITY_META[me.guess.kind].label}」押 <b className="tnum text-[color:var(--gold)]">{me.guess.bet}</b>。
               {data.opponent.hasGuessed ? "双方已就位，正在开牌…" : "等对方锁注后自动开牌。"}
             </p>
@@ -292,7 +298,7 @@ export default function RoomPage() {
               </button>
             </>
           )}
-          <button onClick={() => post("reveal", {})} disabled={busy} className="mt-2 w-full text-center text-xs text-[color:var(--muted)] hover:text-[color:var(--ink-2)]">
+          <button onClick={() => post("reveal", {})} disabled={busy} className="mt-2 w-full text-center text-xs text-[color:var(--meta)] hover:text-[color:var(--ink-2)]">
             不想猜了？强制开牌
           </button>
         </section>
@@ -308,22 +314,22 @@ export default function RoomPage() {
                 const mine = e.playerId === me.id;
                 return (
                   <div key={e.playerId} className="reveal-flip rounded border border-[color:var(--line)] bg-[color:var(--bg)] p-4 text-sm" style={{ animationDelay: `${i * 0.18}s` }}>
-                    <p className="text-xs text-[color:var(--muted)]">{mine ? "你" : e.name} 的真身</p>
+                    <p className="text-xs text-[color:var(--meta)]">{mine ? "你" : e.name} 的真身</p>
                     <p className="display mt-1 text-lg">
                       {IDENTITY_META[e.identity].icon} {IDENTITY_META[e.identity].label}
                     </p>
-                    <p className="mt-1 text-xs text-[color:var(--muted)]">
+                    <p className="mt-1 text-xs text-[color:var(--meta)]">
                       猜测：{e.guessed ? IDENTITY_META[e.guessed].label : "未猜"}
                       {e.bet ? ` · 押 ${e.bet}` : ""}
                     </p>
-                    <p className={`tnum mt-2 text-xl font-bold ${e.points >= 0 ? "text-[color:var(--ok)]" : "text-[color:var(--danger)]"}`}>
+                    <p className={`tnum mt-2 text-xl font-bold ${e.points >= 0 ? "text-[color:var(--ok)]" : "text-[color:var(--like)]"}`}>
                       {e.points >= 0 ? "+" : ""}{e.points}
                     </p>
                   </div>
                 );
               })}
             </div>
-            <div className="mt-4 space-y-1 rounded bg-[color:var(--bg)] p-4 text-xs leading-relaxed text-[color:var(--muted)]">
+            <div className="mt-4 space-y-1 rounded bg-[color:var(--bg)] p-4 text-xs leading-relaxed text-[color:var(--meta)]">
               {data.reveal.report.map((line, i) => (
                 <p key={i} className={i === 0 ? "font-bold text-[color:var(--ink)]" : ""}>{line}</p>
               ))}
@@ -335,6 +341,30 @@ export default function RoomPage() {
           </div>
         </div>
       )}
-    </main>
+
+      {/* 任务只在入场短暂浮现；双方常驻界面完全相同，避免按钮或色彩泄露身份。 */}
+      {showMission && data.phase === "chat" && (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-black/25 p-4" onClick={() => setShowMission(false)}>
+          <section className="card fade-up w-full max-w-md p-6 text-center shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <p className="text-xs font-medium tracking-wide text-[color:var(--time)]">本局秘密任务</p>
+            <h1 className="mt-2 text-2xl font-medium text-[color:var(--ink)]">
+              {disguised ? "伪装成 AI，别被看穿" : "判断对面到底是谁"}
+            </h1>
+            {disguised && persona && (
+              <p className="mt-3 text-sm text-[color:var(--meta)]">你的表达模板：{persona.name} · {persona.blurb}</p>
+            )}
+            <p className="mt-3 text-xs leading-relaxed text-[color:var(--meta)]">
+              {disguised
+                ? "不要自曝。让对面确信你是机器，聊满两轮后再下注。"
+                : "对面可能是真人、AI，或正在伪装 AI 的真人。只凭对话下注。"}
+            </p>
+            <div className="mx-auto mt-5 h-1 w-24 overflow-hidden rounded-full bg-[color:var(--frame)]">
+              <span className="mission-timer block h-full bg-[color:var(--zhihu)]" />
+            </div>
+          </section>
+        </div>
+      )}
+      </main>
+    </>
   );
 }

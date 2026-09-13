@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   const user = resolveSessionUser(req.cookies.get("huzhi_session")?.value);
   if (!user) return NextResponse.json({ error: "登录后才能发帖（帖子会进真人池供大家猜身份）" }, { status: 401 });
 
-  let body: { title?: string; body?: string; topic?: string };
+  let body: { title?: string; body?: string; topic?: string; channelId?: string; disguiseAsAgent?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -18,7 +18,12 @@ export async function POST(req: NextRequest) {
   }
   const result = createUserPost(bankKeyForUser(user.id), user.name, body);
   if (!result.ok || !result.post) return NextResponse.json({ error: result.error }, { status: 400 });
-  return NextResponse.json({ ok: true, post: userPostToClient(result.post) });
+  return NextResponse.json({
+    ok: true,
+    post: userPostToClient(result.post),
+    // 回执告知作者本帖进入哪一类身份（只有作者本人能看到）
+    mode: result.post.disguiseAsAgent ? "human_as_agent" : "human",
+  });
 }
 
 /** 我的帖子列表（query: uid= 供游客查自己的；登录用户自动识别）。 */

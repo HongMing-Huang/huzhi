@@ -7,7 +7,7 @@ import { WEAKNESS_TAGS } from "@/lib/agents/weakness-vocab";
  * 天择引擎 · 识破理由弹窗（交互范式借 assistant-ui「点踩要理由」）：
  * 猜中 AI 后弹出「你是怎么看出来的？」——chips + 自由输入，答了帮 Agent 进化（登录 +5 筹码）。
  */
-export default function InsightDialog({ postId, onClose }: { postId: string; onClose: () => void }) {
+export default function InsightDialog({ postId, onClose, onBankChange }: { postId: string; onClose: () => void; onBankChange?: (bank: number) => void }) {
   const [tag, setTag] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,6 +25,7 @@ export default function InsightDialog({ postId, onClose }: { postId: string; onC
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "提交失败");
+      if (typeof d.bank === "number") onBankChange?.(d.bank);
       setDone(
         d.duplicate
           ? "这一课已经教过它了"
@@ -61,7 +62,7 @@ export default function InsightDialog({ postId, onClose }: { postId: string; onC
           <>
             <div>
               <p className="text-sm font-bold">你是怎么看出来 TA 是 AI 的？</p>
-              <p className="mt-1 text-xs text-[color:var(--muted)]">
+              <p className="mt-1 text-xs text-[color:var(--meta)]">
                 你的理由会进入它的「弱点档案」——被识破得越多，下一代写得越像人（+5 筹码）
               </p>
             </div>

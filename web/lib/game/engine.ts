@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { store } from "./store";
 import { settle } from "./scoring";
 import { assignBotIdentity, assignHumanIdentity, secureRand } from "@/lib/agents/router";
-import { botLockNow, botMaybeLock, botReply } from "@/lib/agents/bot-player";
+import { botLockNow, botMaybeLock, botOpening, botReply } from "@/lib/agents/bot-player";
 import { PERSONAS } from "@/lib/ai/personas";
 import { isIdentity, type ClientRoom, type GuessKind, type Identity, type Player, type Room, type Topic } from "./types";
 
@@ -47,6 +47,26 @@ export function createRoom(name: string, topic: Topic, userKey?: string): Room {
     bot.personaId = PERSONAS[Math.floor(secureRand() * PERSONAS.length)].id;
   }
   room.players = [you, bot];
+  room.messages.push(botOpening(room, bot));
+  store.set(room);
+  return room;
+}
+
+/** 两位真人进入同一套密封身份矩阵；双方都可能抽到“真人”或“伪装成 AI”。 */
+export function createHumanRoom(
+  first: { name: string; userKey?: string },
+  second: { name: string; userKey?: string },
+  topic: Topic,
+): Room {
+  const room: Room = {
+    id: randomUUID().slice(0, 8), topic, phase: "chat", round: 0, maxRounds: MAX_ROUNDS, players: [], messages: [], createdAt: Date.now(),
+  };
+  room.players = [first, second].map((input) => {
+    const identity = assignHumanIdentity();
+    const player: Player = { id: "u_" + randomUUID().slice(0, 6), name: input.name, isBot: false, identity, userKey: input.userKey };
+    if (identity === "disguised") player.personaId = PERSONAS[Math.floor(secureRand() * PERSONAS.length)].id;
+    return player;
+  });
   store.set(room);
   return room;
 }
@@ -59,6 +79,7 @@ export async function addUserMessage(room: Room, playerId: string, text: string)
     throw new Error("反套路规则：禁止自曝身份！");
   }
   const prev = room.messages[room.messages.length - 1];
+  if (prev?.from === playerId) throw new Error("等对方回复后再发，别连发露馅");
   room.messages.push({
     id: randomUUID().slice(0, 8),
     from: playerId,
@@ -66,11 +87,14 @@ export async function addUserMessage(room: Room, playerId: string, text: string)
     ts: Date.now(),
     responseMs: prev ? Math.min(99999, Date.now() - prev.ts) : 0,
   });
-  const userTurns = room.messages.filter((m) => m.from === playerId).length;
-  room.round = Math.min(MAX_ROUNDS, userTurns);
+  const turnCounts = room.players.map((p) => room.messages.filter((m) => m.from === p.id).length);
+  room.round = Math.min(MAX_ROUNDS, Math.min(...turnCounts));
 
   const bot = room.players.find((p) => p.isBot);
-  if (!bot) return;
+  if (!bot) {
+    store.set(room);
+    return;
+  }
   botMaybeLock(room, bot);
   const reply = await botReply(room, bot, room.round);
   room.messages.push(reply);
