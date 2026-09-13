@@ -56,6 +56,11 @@ export default function RoomPage() {
     setPid(stored);
   }, [id]);
 
+  // Next.js 可能在不同房间之间复用页面实例；每个新房间都必须重新确认任务。
+  useEffect(() => {
+    setShowMission(true);
+  }, [id]);
+
   useEffect(() => {
     if (!pid) return;
     fetchState();
@@ -76,13 +81,6 @@ export default function RoomPage() {
       if (fallback) clearInterval(fallback);
     };
   }, [pid, fetchState]);
-
-  useEffect(() => {
-    if (!data?.roomId) return;
-    setShowMission(true);
-    const timer = setTimeout(() => setShowMission(false), 1800);
-    return () => clearTimeout(timer);
-  }, [data?.roomId]);
 
   async function post(path: string, body: Record<string, unknown>) {
     setBusy(true);
@@ -342,12 +340,12 @@ export default function RoomPage() {
         </div>
       )}
 
-      {/* 任务只在入场短暂浮现；双方常驻界面完全相同，避免按钮或色彩泄露身份。 */}
+      {/* 任务在入场时显示，用户确认后关闭；双方弹窗结构相同，避免交互泄露身份。 */}
       {showMission && data.phase === "chat" && (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-black/25 p-4" onClick={() => setShowMission(false)}>
-          <section className="card fade-up w-full max-w-md p-6 text-center shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-40 grid place-items-center bg-black/25 p-4" role="presentation">
+          <section className="card fade-up w-full max-w-md p-6 text-center shadow-xl" role="dialog" aria-modal="true" aria-labelledby="mission-title">
             <p className="text-xs font-medium tracking-wide text-[color:var(--time)]">本局秘密任务</p>
-            <h1 className="mt-2 text-2xl font-medium text-[color:var(--ink)]">
+            <h1 id="mission-title" className="mt-2 text-2xl font-medium text-[color:var(--ink)]">
               {disguised ? "伪装成 AI，别被看穿" : "判断对面到底是谁"}
             </h1>
             {disguised && persona && (
@@ -358,9 +356,9 @@ export default function RoomPage() {
                 ? "不要自曝。让对面确信你是机器，聊满两轮后再下注。"
                 : "对面可能是真人、AI，或正在伪装 AI 的真人。只凭对话下注。"}
             </p>
-            <div className="mx-auto mt-5 h-1 w-24 overflow-hidden rounded-full bg-[color:var(--frame)]">
-              <span className="mission-timer block h-full bg-[color:var(--zhihu)]" />
-            </div>
+            <button type="button" className="btn btn-primary mt-5" onClick={() => setShowMission(false)}>
+              我知道啦
+            </button>
           </section>
         </div>
       )}
