@@ -1,10 +1,10 @@
 // LLM Provider：OpenAI 兼容网关优先，无凭证/失败一律回退 mock 生成器。
-// 凭证只从环境变量读取，超时 8s，密钥绝不发给客户端。
+// 凭证只从环境变量读取，超时 25s，密钥绝不发给客户端。
 // 无任何 shell/子进程调用，仅 HTTPS fetch。
 
 import type { LLMProvider } from "./provider-types";
 
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 25000;
 
 /** 仅允许 https 且非环回/私有/保留地址（防 SSRF）。 */
 export function assertPublicHttpsUrl(raw: string): URL {
@@ -76,7 +76,7 @@ export function getProvider(): LLMProvider {
   const key = process.env.ZHIHU_LLM_API_KEY;
   if (base && key) {
     try {
-      const endpoint = assertPublicHttpsUrl(new URL("/chat/completions", base).toString());
+      const endpoint = assertPublicHttpsUrl(new URL("chat/completions", `${base.replace(/\/+$/, "")}/`).toString());
       return new OpenAICompatProvider(endpoint, key, process.env.ZHIHU_LLM_MODEL || "gpt-4o-mini");
     } catch {
       // 配置了非法地址则视为无凭证，回退 mock

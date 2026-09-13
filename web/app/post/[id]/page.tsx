@@ -228,7 +228,7 @@ export default function PostPage() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "评论失败");
-      setComments((prev) => [d.comment, ...prev]);
+      setComments((prev) => [...(d.reply ? [d.reply] : []), d.comment, ...prev]);
       setCommentText("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "评论失败");

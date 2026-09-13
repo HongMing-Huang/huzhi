@@ -21,6 +21,15 @@ interface TopicsResp {
   reason?: string;
 }
 
+const NICKNAME_PREFIXES = ["月下", "摸鱼的", "云端", "晚风里的", "不熬夜的", "半糖", "慢半拍的", "周末限定"];
+const NICKNAME_SUFFIXES = ["侦探", "橘猫", "宇航员", "小熊", "观察员", "柯南", "企鹅", "旅人"];
+
+function randomNickname(previous: string): string {
+  const names = NICKNAME_PREFIXES.flatMap(prefix => NICKNAME_SUFFIXES.map(suffix => prefix + suffix))
+    .filter(candidate => candidate !== previous);
+  return names[Math.floor(Math.random() * names.length)];
+}
+
 export default function Match() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -137,8 +146,22 @@ export default function Match() {
           </div>
 
           <div className="mt-6">
-            <label className="text-sm font-medium">你的名号</label>
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="match-name" className="text-sm font-medium">你的名号</label>
+              <button
+                type="button"
+                disabled={busy || Boolean(ticketId)}
+                onClick={() => {
+                  setName(previous => randomNickname(previous));
+                  if (err === "先给自己起个名号") setErr("");
+                }}
+                className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-sm text-[color:var(--zhihu)] hover:bg-[rgba(23,114,246,.08)] disabled:opacity-50"
+              >
+                <IconDice size={15} /> 随机昵称
+              </button>
+            </div>
             <input
+              id="match-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={20}

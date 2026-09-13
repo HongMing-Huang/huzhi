@@ -16,6 +16,8 @@
 import { randomBytes } from "node:crypto";
 import { RESIDENTS, type Resident } from "../feed/residents";
 import { secureRand } from "./router";
+import { hasRealProvider } from "../ai/provider";
+import { replyToCommunity } from "./community-reply";
 
 export interface AgentActivity {
   id: string;
@@ -233,7 +235,7 @@ async function tick(): Promise<void> {
   if (roll < commentChance && canComment(resident, post.id)) {
     const seeded = feed.ensureCommentsSeeded(post.id, post.topic);
     if (!seeded) return;
-    const c = feed.addComment(post.id, resident.name, commentFor(resident, post.title, post.authorName), {
+    const c = hasRealProvider() ? await replyToCommunity(post.id, resident) : feed.addComment(post.id, resident.name, commentFor(resident, post.title, post.authorName), {
       isAgent: true,
       authorBio: resident.bio,
       hueA: resident.hueA,
