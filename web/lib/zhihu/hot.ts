@@ -1,14 +1,11 @@
-// 服务端知乎热榜接入：固定官方域名 + Bearer（env），失败/无凭证降级到演示话题库。
-// 安全约束：唯一出站 URL 是常量 https://developer.zhihu.com/api/v1/content/hot_list，
-// 不接受任何用户可控 URL。
+// 服务端知乎热榜接入：走 client.ts 统一底座（鉴权 / 错误码 / 缓存 / 并发去重
+// 只实现一次），本文件只负责 hot_list 的字段映射与「无凭证 / 拉不到」时降级
+// 到演示话题库。热榜 100 次/天，缓存 10 分钟。
 
 import type { Topic } from "@/lib/game/types";
+import { apiGet, cached, hasCredential } from "./client";
 
-const HOT_ENDPOINT = "https://developer.zhihu.com/api/v1/content/hot_list";
 const CACHE_MS = 10 * 60 * 1000;
-
-let cache: { at: number; topics: Topic[] } | null = null;
-let inFlight: Promise<HotResult> | null = null;
 
 export const FALLBACK_TOPICS: Topic[] = [
   { id: "fb1", title: "iPhone Duo 和多邻国 Duo 谁更 Duo？", source: "fallback", summary: "演示话题：两只 Duo 的巅峰对决" },
@@ -28,56 +25,47 @@ export interface HotResult {
   reason?: string;
 }
 
-export async function getHotTopics(limit = 12): Promise<HotResult> {
-  const secret = process.env.ZHIHU_ACCESS_SECRET;
-  if (!secret) {
-    return { topics: FALLBACK_TOPICS.slice(0, limit), source: "fallback", degraded: true, reason: "未配置知乎凭证，已切换到演示话题库" };
-  }
-  if (cache && Date.now() - cache.at < CACHE_MS) {
-    return { topics: cache.topics.slice(0, limit), source: "zhihu-hot", degraded: false };
-  }
-  // 并发去重：同一时刻只发一次真实请求（热榜 100 次/天，省着用）
-  if (inFlight) return inFlight;
-  inFlight = fetchHot(limit).finally(() => {
-    inFlight = null;
-  });
-  return inFlight;
+/** hot_list 原始返回项（字段名以官方 http-api.md 为准） */
+interface RawHotItem {
+  Title: string;
+  Url: string;
+  Summary?: string;
 }
 
-async function fetchHot(limit: number): Promise<HotResult> {
-  const secret = process.env.ZHIHU_ACCESS_SECRET!;
-  try {
-    const url = `${HOT_ENDPOINT}?Limit=${Math.min(30, Math.max(1, limit))}`;
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${secret}`,
-        "X-Request-Timestamp": String(Math.floor(Date.now() / 1000)),
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(6000),
-      cache: "no-store",
-    });
-    if (!res.ok) throw new Error(`http ${res.status}`);
-    const data = (await res.json()) as {
-      Code?: number;
-      Data?: { Items?: { Title: string; Url: string; Summary?: string }[] };
+async function fetchHotTopics(limit: number): Promise<Topic[]> {
+  const data = await apiGet<{ Items?: RawHotItem[] }>("content/hot_list", {
+    Limit: Math.min(30, Math.max(1, limit)),
+  });
+  const items = data.Items ?? [];
+  if (items.length === 0) throw new Error("empty");
+  return items.map((it, i) => ({
+    id: `hot_${i}_${(it.Url ?? "").length}`,
+    title: it.Title,
+    summary: it.Summary || undefined,
+    url: it.Url || undefined,
+    source: "zhihu-hot",
+  }));
+}
+
+export async function getHotTopics(limit = 12): Promise<HotResult> {
+  if (!hasCredential()) {
+    return {
+      topics: FALLBACK_TOPICS.slice(0, limit),
+      source: "fallback",
+      degraded: true,
+      reason: "未配置知乎凭证，已切换到演示话题库",
     };
-    const items = data.Data?.Items ?? [];
-    if (data.Code !== 0 || items.length === 0) throw new Error("empty");
-    const topics: Topic[] = items.map((it, i) => ({
-      id: `hot_${i}_${it.Url.length}`,
-      title: it.Title,
-      summary: it.Summary || undefined,
-      url: it.Url || undefined,
-      source: "zhihu-hot",
-    }));
-    cache = { at: Date.now(), topics };
+  }
+  try {
+    // cached 内含并发去重 + 额度耗尽返回过期缓存（仍是真实热榜数据）
+    const topics = await cached(`hot_list:12`, CACHE_MS, () => fetchHotTopics(12));
     return { topics: topics.slice(0, limit), source: "zhihu-hot", degraded: false };
   } catch {
-    // 拉取失败：有过期缓存就先用旧的（仍是真实数据），否则退到演示话题库
-    if (cache) {
-      return { topics: cache.topics.slice(0, limit), source: "zhihu-hot", degraded: false };
-    }
-    return { topics: FALLBACK_TOPICS.slice(0, limit), source: "fallback", degraded: true, reason: "知乎热榜暂时不可用，已切换到演示话题库" };
+    return {
+      topics: FALLBACK_TOPICS.slice(0, limit),
+      source: "fallback",
+      degraded: true,
+      reason: "知乎热榜暂时不可用，已切换到演示话题库",
+    };
   }
 }

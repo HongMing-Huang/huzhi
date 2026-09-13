@@ -78,6 +78,18 @@ interface LeaderRow {
   bank: number;
 }
 
+/** 知乎开放平台能力接入状态（对应 /api/zhihu/status） */
+interface ZhihuCapability {
+  apiId: string;
+  name: string;
+  endpoint: string;
+  quota: { total: number; used: number; remaining: number; low: boolean } | null;
+}
+interface ZhihuStatus {
+  configured: boolean;
+  capabilities: ZhihuCapability[];
+}
+
 type Tab = "feed" | "hot" | "residents";
 
 function uid(): string {
@@ -108,6 +120,7 @@ export default function Home() {
   const [bank, setBank] = useState<number | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [leaders, setLeaders] = useState<LeaderRow[]>([]);
+  const [zhihuStatus, setZhihuStatus] = useState<ZhihuStatus | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [bannerOff, setBannerOff] = useState(true);
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -170,6 +183,7 @@ export default function Home() {
       })
       .catch(() => {});
     fetch("/api/leaderboard").then((r) => r.json()).then((d) => setLeaders(d.players ?? [])).catch(() => {});
+    fetch("/api/zhihu/status").then((r) => r.json()).then((d: ZhihuStatus) => setZhihuStatus(d)).catch(() => {});
     fetch("/api/evolution").then((r) => r.json()).then((d) => {
       setEvolution(Object.fromEntries((d.residents ?? []).map((row: EvolutionRow) => [row.id, row])));
     }).catch(() => {});
@@ -679,6 +693,53 @@ export default function Home() {
                   </span>
                 </Link>
               ))}
+            </div>
+          </div>
+
+          {/* 知乎开放平台能力接入状态：六大 API 实时额度，评委可验证「到底用了哪些知乎能力」 */}
+          <div className="card">
+            <div className="card-header">
+              <b className="card-header-text flex items-center gap-1.5 text-sm">
+                <IconInfo size={15} className="text-[color:var(--zhihu)]" />
+                知乎开放平台
+              </b>
+              <span
+                className="tag-pill !h-[20px] !px-1.5 !text-xs"
+                data-tone={zhihuStatus?.configured ? "brand" : "hot"}
+              >
+                {zhihuStatus ? (zhihuStatus.configured ? "已接入" : "降级中") : "…"}
+              </span>
+            </div>
+            <div className="card-section">
+              <p className="text-xs leading-relaxed text-[color:var(--time)]">
+                本作品真实接入知乎开放平台六大能力，凭证仅存于服务端环境变量。
+              </p>
+              <div className="mt-2.5 space-y-1.5">
+                {(zhihuStatus?.capabilities ?? []).map((c) => (
+                  <div key={c.apiId} className="flex items-center justify-between gap-2 text-[13px]">
+                    <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                    {c.quota ? (
+                      <span
+                        className="tnum text-xs"
+                        style={{ color: c.quota.low ? "var(--hot)" : "var(--time)" }}
+                        title={`剩余 ${c.quota.remaining} / ${c.quota.total}`}
+                      >
+                        {c.quota.remaining}/{c.quota.total}
+                      </span>
+                    ) : (
+                      <span className="tnum text-xs text-[color:var(--time)]">
+                        {zhihuStatus?.configured ? "—" : "本地"}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {!zhihuStatus && (
+                  <p className="text-xs text-[color:var(--time)]">能力状态加载中…</p>
+                )}
+              </div>
+              {zhihuStatus && !zhihuStatus.configured && (
+                <p className="note-block mt-2.5">未配置凭证，全部能力运行在本地语料降级模式。</p>
+              )}
             </div>
           </div>
 
