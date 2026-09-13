@@ -290,6 +290,14 @@ zhihu/
   - [x] 段落选项加常态细边框与 hover 态（视觉 QA 指出纯文字列表看不出可点）
   - [x] **重写 DEPLOY.md 上线方案**：明确指出当前 JSON 文件库在 Vercel 只读文件系统上会**静默丢数据**（`saveCollection` 内部 `catch {}` 吞错，前端仍显示成功），给出 Upstash Redis / 带持久卷平台两条路径、Serverless 下 Agent 心跳与对局房间的限制与对策、完整提交材料清单与产品说明要点
   - [x] 验证：`tsc --noEmit` 零错误、生产构建通过（/theater、/kindred 进路由表）、10 个页面全部 200、两条赛道端到端实跑、视觉 QA
+- [x] **本轮（33）· 六 API 收口复核 + 检验流程固化 + GitHub 开源托管（用户指令：直接建仓上传；不自建设计，沿用已定稿开源底座）**
+  - [x] **六 API 收口确认**：`hot.ts`/`search.ts` 去重自拼 Bearer/降级，改走 `client.ts` 统一底座（鉴权/错误码/缓存/并发去重只实现一次）；接入结构文档 docs/zhihu-api-integration.md（六大能力 × 端点 × 缓存 × 额度归属全表，2026-09-13 官网复核）
+  - [x] 首页右栏新增「知乎开放平台」能力卡：`GET /api/zhihu/status` 六能力实时额度（剩余/总量，低于 10% 变红），评委可验证「到底用了哪些知乎能力」
+  - [x] **检验流程固化** → docs/verification-runbook.md（五步：静态 → 六接口直连 → 运行时接口 → 界面走查 → 降级检验，每步含命令与判定标准 + 六能力降级路径速查表）
+  - [x] 检验脚本 `web/scripts/verify-zhihu-api.mjs`（`npm run verify:zhihu`）：读 .env.local 只进内存、先取额度快照、逐一实调六接口校验 Code=0 与响应形状、问题回答用热榜首条问题链接**联动实测**（不写死题目）、检验后额度快照 = 真实消耗
+  - [x] **实跑结果：8 过 / 0 败**，额度恰各消耗 1（hot_list 47→46、zhihu_search 4890→4889、global_search 4999→4998、question_answers 94→93、creator 97→96、zhida_openai 4999→4998）；`tsc --noEmit` 零错误、生产构建通过（路由表完整）
+  - [x] **开源底座状态（诚实）**：Supabase+Upstash 仍为「定稿未接入」——`web/.env.local` 仅有 ZHIHU_ACCESS_SECRET，无 Supabase/Upstash 凭证，DDL（web/db/schema.sql）与八步迁移方案就绪，待用户开项目；本轮不擅自自建设施
+  - [x] **GitHub 托管**：推送前泄漏扫描（真实密钥值不在任何 219 个跟踪文件、.env.example 全占位、.data/ 与 .env.local 未跟踪）→ `gh repo create` 建仓推送 main；新增 README.md（项目门面：玩法/六 API 表/检验流程/快速开始/文档索引）
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
 - [ ] 直答 Agent 接入运行时（100 次/天，做官方 AI 池内容）
