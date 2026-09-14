@@ -392,9 +392,13 @@ zhihu/
   - [x] **刘看山真 AI 实测**：`source:"openai-compatible"`、`real:true`；自然回答（"我喜欢雪、安静地观察…"）；身份保护仍生效（"这个我不能说"）；计分问答修复（此前 LLM 把 ×1.6 算成 16 分——MANUAL 改为**数值全计分表**代码注入，实测答案 48/80 正确）
   - [x] **全系统 LLM 激活面**：刘看山对话 / 居民 LLM 评论（replyToCommunity，失败不降级模板）/ 对局 bot（chatOrFallback）三条路径共用 provider；`.env.example` 凭据占位已存在
   - [x] push 已恢复（清死代理 env 直连成功，`gh auth status ✓ HongMing-Huang`，`7133d88..d29cf8a main->main`）；后续 push 命令见上文运维提示
+- [x] **本轮（48）· 直答 Agent 接入 AI 池 + 全量回归（用户："全部完成一个推进"）**
+  - [x] **直答 Agent 接入运行时（兑现 AGENTS.md 长期待办）**：`feed/index.ts` buildPool 注入知乎直答生成——首话题问直答（`askZhida`，走 zhida_openai 额度、1h 缓存、无凭证/失败静默回退模板），每天每实例 ≤3 条保额度；生成帖 `identity:"agent"` 混池密封、时间戳落"刚刚"
+  - [x] **实测**：feed 出现 `zd_` 帖（"说实话，我看到这份通报第一反应是想起前几年在区里做项目的经历…"——口语化+个人经历，非模板）；游客猜 AI → correct=True, identity=ai, **+30**（真实 AI 内容被正确识别）
+  - [x] **全量回归**：`tsc --noEmit` 零错误；15 个页面路由全部 200（含 /post/zd_… 详情读通）；后续生产 build 与部署由用户按 DEPLOY.md 执行（dev/build 与 3000 端口互斥注意）
+  - [x] GitHub 持续推送：`f109ac9`…（每轮提交即推，工作区保持干净）
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
-- [ ] 直答 Agent 接入运行时（100 次/天，做官方 AI 池内容）
 - [ ] 道具商店（伪装道具/侦探工具/反套路）接入对局
 - [ ] 多人房（狼人杀式）模式；Agent 参与 1v1 对局（scope 已预留）
 - [ ] 部署公网 Demo + 建代码仓库 + 产品说明计划书 + 演示视频（9/13 10:00 – 9/15 10:00 提交窗口，建议 9/13 尽早占位）

@@ -2,7 +2,7 @@
 // v3：大内容池 + 游标分页，支持无限刷；身份只在服务端保存。
 import { getHotTopics } from "@/lib/zhihu/hot";
 import { searchZhihu, hasSearchCredential } from "@/lib/zhihu/search";
-import { getQuestionAnswers } from "@/lib/zhihu/discovery";
+import { getQuestionAnswers, askZhida } from "@/lib/zhihu/discovery";
 import { generateAgentPosts, randomSalt } from "./generate";
 import { residentById, RESIDENTS } from "./residents";
 import { listAgentPosts, listAgentComments, getAgentById, getAgentPost, voteAgentPost } from "@/lib/agents/registry";
@@ -71,6 +71,9 @@ const g = globalThis as unknown as {
   __huzhiFeed?: FeedState;
   __huzhiVoteSets?: Map<string, Set<string>>;
   __huzhiComments?: Map<string, PostComment[]>;
+  /** 直答生成帖：每实例当日上限（保护 zhida 100 次/天额度） */
+  __huzhiZhidaUsed?: number;
+  __huzhiZhidaDay?: string;
 };
 
 function hash(s: string): number {
@@ -192,6 +195,41 @@ async function buildPool(): Promise<FeedState> {
   // 每个话题生成多批，variant 递增保证标题句式轮换不撞车。
   // 其中一部分居民走「伪装真人」路线（agent_as_human）：生成器注入口语碎片与
   // 个人经历，使其在读者眼里更像真人，识破难度与积分都更高。
+
+  // 真实 AI 内容：知乎直答生成一条（zhida_openai 额度，每实例当日 ≤3 条，失败静默回退模板）
+  const todayKey = new Date().toISOString().slice(0, 10);
+  if (g.__huzhiZhidaDay !== todayKey) {
+    g.__huzhiZhidaDay = todayKey;
+    g.__huzhiZhidaUsed = 0;
+  }
+  if ((g.__huzhiZhidaUsed ?? 0) < 3 && topics.length > 0) {
+    const qTopic = topics[0].title;
+    g.__huzhiZhidaUsed = (g.__huzhiZhidaUsed ?? 0) + 1;
+    const z = await askZhida(
+      `你是一名知乎用户，围绕当前热议话题《${qTopic}》写一段第一人称的中文观点，150–250 字。要求：口语化、有个人经历痕迹、不要小标题、不要自称 AI、不要列点、不要用"首先/其次/总之"。`,
+    );
+    if (!z.degraded && z.content.trim().length > 60) {
+      const body = z.content.trim();
+      const id = `zd_${hash(qTopic + salt).toString(36)}`;
+      const r = RESIDENTS[hash(qTopic + salt) % RESIDENTS.length];
+      posts.unshift({
+        id,
+        authorName: r.name,
+        authorBio: r.bio,
+        hueA: r.hueA,
+        hueB: r.hueB,
+        title: (body.split(/[。\n]/)[0] || "关于这个话题的看法").slice(0, 40),
+        excerpt: body.slice(0, 400),
+        body,
+        votes: pseudoVotes(id + "v", 3, 800),
+        comments: commentCountFor(id, true),
+        topic: qTopic.slice(0, 24),
+        identity: "agent",
+        at: Date.now() - 60 * 1000, // 真实 AI 刚生成，落在"刚刚"
+      });
+    }
+  }
+
   const need = Math.max(0, POOL_TARGET - posts.length);
   const perTopic = new Map<string, number>();
   for (let i = 0; i < need; i++) {
