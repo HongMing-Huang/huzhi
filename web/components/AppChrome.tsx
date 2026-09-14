@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconBag, IconChat, IconFeed, IconMask, IconUser, IconUsers } from "@/components/Icons";
+import { HuzhiLogo } from "@/components/HuzhiLogo";
 
 const NAV = [
   { href: "/", label: "社区", icon: IconFeed },
@@ -27,7 +28,7 @@ export function AppHeader({ title, right }: { title?: string; right?: React.Reac
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <Link href="/" className="logo-script shrink-0 text-[28px] leading-none" aria-label="乎知首页">乎知</Link>
+        <Link href="/" className="shrink-0" aria-label="乎知首页"><HuzhiLogo className="h-7" /></Link>
         {title && <span className="hidden h-4 w-px bg-[color:var(--line)] sm:block" />}
         {title && <span className="truncate text-sm font-medium text-[color:var(--ink-2)]">{title}</span>}
         <nav className="ml-auto hidden items-center gap-1 md:flex" aria-label="主导航">

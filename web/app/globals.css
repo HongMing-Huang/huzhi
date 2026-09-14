@@ -663,11 +663,15 @@ button:focus-visible {
 }
 .avatar-square { border-radius: 3px; } /* 官方 .SearchBar-userAvatar */
 
-.logo-script {
-  font-family: "Kaiti SC", "STKaiti", "KaiTi", "DFKai-SB", serif;
-  font-weight: 900;
+.huzhi-logo {
+  display: block;
+  width: auto;
   color: var(--zhihu);
-  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.huzhi-logo path {
+  fill: currentColor;
 }
 
 .display { font-weight: var(--w-bold); letter-spacing: -0.01em; line-height: 1.3; }

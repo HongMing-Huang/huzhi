@@ -11,6 +11,7 @@ import {
 import InsightDialog from "@/components/InsightDialog";
 import Kanshan from "@/components/Kanshan";
 import KanshanSays from "@/components/KanshanSays";
+import { HuzhiLogo } from "@/components/HuzhiLogo";
 import { kanshanSay, sceneForResult } from "@/lib/kanshan";
 
 interface FeedPost {
@@ -272,7 +273,7 @@ export default function Home() {
             href="/"
             className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 select-none items-baseline text-[color:var(--zhihu)] lg:left-10"
           >
-            <span className="logo-script text-[30px] leading-none">乎知</span>
+            <HuzhiLogo className="h-[30px]" />
           </Link>
           <div className="absolute left-1/2 top-1/2 hidden w-[min(43vw,960px)] -translate-x-1/2 -translate-y-1/2 sm:block">
             <form
