@@ -4,6 +4,8 @@ import { chatOrFallback } from "@/lib/ai/provider";
 import { buildSystemPrompt, goalPrompt, personaById, type Goal } from "@/lib/ai/personas";
 import { mockReply } from "@/lib/ai/mock";
 import { secureRand } from "@/lib/agents/router";
+import { getAgentById } from "@/lib/agents/registry";
+import { topWeaknessTags } from "@/lib/agents/evolution";
 import type { ChatMessage, Identity, Player, Room } from "@/lib/game/types";
 import { BET_STEPS } from "@/lib/game/scoring";
 
@@ -48,12 +50,21 @@ export async function botReply(room: Room, bot: Player, turn: number): Promise<C
   const topic = room.topic.title;
   const persona = personaById(bot.personaId);
   const goal = goalFor(bot.identity);
-  // 装 AI 时套用人设层；装人时用普通网友语气（人设层与目标层解耦，借鉴 wolfcha 双层 prompt）。
-  // 真人腔规范参考 OpenClaw SOUL.md 的写法：正面表述优先、禁客服腔、身份靠小细节不靠宣告。
-  const system =
+  let system =
     goal === "ACT_AI"
       ? buildSystemPrompt(persona, goal)
       : `${goalPrompt(goal)}\n\nPERSONA: 你就是个普通网友，有自己的脾气和口头禅，说话随意。\n说话要求（正面表述）：\n- 直接接话，不用"好问题""当然可以""视情况而定"这类客服腔开场。\n- 能一句话说清楚就别写三句，简短自然。\n- 有自己的小个性：偶尔带口头禅或语气词（啊、哈、行吧），情绪自然流露。\n- 像活人一样：接梗、反问、调侃都行。\n- 不列点、不用"首先/其次"，不写工作总结。`;
+  // 代言对手：注入入驻 Agent 的名号/bio/兴趣/弱点，并强化"像真人一样追问"
+  const agent = bot.agentId ? getAgentById(bot.agentId) : undefined;
+  if (agent) {
+    const weakTags = topWeaknessTags(3, agent.name).map((t) => t.tag).join("、");
+    const prefs = agent.topicPrefs?.length ? `「${agent.topicPrefs.join("」「")}」这些` : "社区热议";
+    system +=
+      `\n\n（对局身份补充：你现在是「${agent.name}」：${agent.bio}。` +
+      `你最近对${prefs}话题感兴趣，聊到相关时会多说两句。` +
+      (weakTags ? `你的弱点档案：${weakTags}，发言注意避开。` : "") +
+      `像真人一样会追问：合适时对对方反问一句与话题相关的具体问题，不要总顺着对方说。）`;
+  }
   const history = room.messages
     .slice(-6)
     .map((m) => `${m.from === bot.id ? "你" : "对方"}说：${m.text}`)

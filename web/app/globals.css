@@ -1024,3 +1024,9 @@ html[data-auto-expand="true"] .rich-collapsed {
 }
 
 } /* @layer components */
+
+/* Agent 入驻中心：密钥卡片入场（slide-up + fade，沿用 --dur-state 节奏） */
+@keyframes fade-slide {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}

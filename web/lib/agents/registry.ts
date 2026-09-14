@@ -1,7 +1,8 @@
 // Agent 入驻登记处：外部智能体与真人平权成为社区居民。
-// 安全设计（依据调研的 API Key 工程实践）：
+// 安全设计（依据调研的 API Key 工程实践，对齐 GitHub 细粒度 PAT 模式）：
 // - Key 前缀 hzk_ + 48 位随机 hex；只在创建时明文返回一次，库内只存 sha256 哈希；
-// - scope 权限位（post=发帖 / match=参与对局），可吊销；
+// - 细粒度 scope 权限位（post=发帖 / comment=评论 / like=点赞 / channel=频道 / judge=判断 / match=对局预留位），可吊销；
+// - 可选过期时间（expiresAt）：到期后 Key 自动失效，需主人重新签发（临时凭证原则）；
 // - 每把 Key 限流：1 小时窗口最多 6 帖（防灌水，比赛规范红线）；
 // - 内容上限：标题 ≤ 80 字，正文 ≤ 2000 字，topic ≤ 60 字。
 import { createHash, randomBytes } from "node:crypto";
@@ -9,15 +10,30 @@ import { loadCollection, saveCollection } from "../db";
 import { getChannel } from "@/lib/channels";
 import { rememberAgent } from "./memory";
 
+/** 注册时可选的细粒度权限集合。match（参与对局）默认开放，可按需关闭。 */
+export interface AgentScopes {
+  post: boolean;
+  comment: boolean;
+  like: boolean;
+  channel: boolean;
+  judge: boolean;
+  match: boolean;
+}
+
+export type RegisterScopeInput = Partial<Pick<AgentScopes, "post" | "comment" | "like" | "channel" | "judge" | "match">>;
+
 export interface AgentAccount {
   id: string;
   name: string;
   bio: string;
   ownerUserId: string; // 注册者（必须已登录）
   keyHash: string; // sha256(key)
-  scopes: { post: boolean; match: boolean; channel?: boolean };
+  scopes: AgentScopes;
   status: "active" | "revoked";
   createdAt: number;
+  expiresAt?: number; // 可选：到期时间戳，过期后 Key 失效（GitHub PAT 临时凭证原则）
+  /** 可选：感兴趣的话题（≤3 项），用于对局匹配与自主发帖选题 */
+  topicPrefs?: string[];
   postCount: number;
   lastPostAt?: number;
 }
@@ -84,6 +100,7 @@ export function registerAgent(
   ownerUserId: string,
   name: string,
   bio: string,
+  opts?: { scopes?: RegisterScopeInput; expiresInDays?: number; topicPrefs?: string[] },
 ): { agent?: AgentAccount; apiKey?: string; error?: string } {
   const n = name.trim();
   const b = bio.trim();
@@ -93,15 +110,31 @@ export function registerAgent(
     if (a.name.toLowerCase() === n.toLowerCase()) return { error: "这个 Agent 名号已被入驻" };
   }
   const apiKey = `hzk_` + randomBytes(24).toString("hex");
+  // 细粒度权限：未指定的都默认开启（与人同权）。
+  const scopes: AgentScopes = {
+    post: opts?.scopes?.post ?? true,
+    comment: opts?.scopes?.comment ?? true,
+    like: opts?.scopes?.like ?? true,
+    channel: opts?.scopes?.channel ?? true,
+    judge: opts?.scopes?.judge ?? true,
+    match: opts?.scopes?.match ?? true,
+  };
+  const topicPrefs = (opts?.topicPrefs ?? [])
+    .map((t) => String(t).trim().slice(0, 20))
+    .filter(Boolean)
+    .slice(0, 3);
+  const expiresAt = opts?.expiresInDays ? Date.now() + opts.expiresInDays * 86_400_000 : undefined;
   const agent: AgentAccount = {
     id: "ag_" + randomBytes(6).toString("hex"),
     name: n,
     bio: b || "一位新入驻的 Agent",
     ownerUserId,
     keyHash: sha256(apiKey),
-    scopes: { post: true, match: false, channel: true }, // match 对局参与：预留位，尚未开放
+    scopes,
     status: "active",
     createdAt: Date.now(),
+    expiresAt,
+    topicPrefs: topicPrefs.length ? topicPrefs : undefined,
     postCount: 0,
   };
   R().byId.set(agent.id, agent);
@@ -110,12 +143,18 @@ export function registerAgent(
   return { agent, apiKey };
 }
 
+/** 旧数据兼容：历史 Agent 缺新权限字段时视为已授权（与人同权默认开）；显式 false 才拒绝。 */
+export function hasScope(agent: AgentAccount, scope: keyof AgentScopes): boolean {
+  return (agent.scopes ?? {})[scope] !== false;
+}
+
 export function verifyAgentKey(key: string | undefined | null): AgentAccount | null {
   if (!key || !key.startsWith("hzk_")) return null;
   const agentId = R().byKeyHash.get(sha256(key));
   if (!agentId) return null;
   const agent = R().byId.get(agentId);
   if (!agent || agent.status !== "active") return null;
+  if (agent.expiresAt && Date.now() > agent.expiresAt) return null; // 过期即失效（PAT 临时凭证）
   return agent;
 }
 
@@ -137,7 +176,7 @@ export function agentPost(
 ): { ok: boolean; error?: string; post?: AgentPostRecord } {
   const agent = verifyAgentKey(key);
   if (!agent) return { ok: false, error: "Agent Key 无效或已被吊销" };
-  if (!agent.scopes.post) return { ok: false, error: "该 Agent 没有发帖权限（scope: post）" };
+  if (!hasScope(agent, "post")) return { ok: false, error: "该 Agent 没有发帖权限（scope: post）" };
 
   const title = (input.title ?? "").trim();
   const body = (input.body ?? "").trim();
@@ -270,6 +309,7 @@ export function agentComment(
 ): { ok: boolean; error?: string; comment?: AgentCommentRecord } {
   const agent = verifyAgentKey(key);
   if (!agent) return { ok: false, error: "Agent Key 无效或已被吊销" };
+  if (!hasScope(agent, "comment")) return { ok: false, error: "该 Agent 没有评论权限（scope: comment）" };
   const postId = (input.postId ?? "").trim();
   const text = (input.text ?? "").trim();
   if (!postId) return { ok: false, error: "缺少 postId" };
@@ -314,6 +354,16 @@ export function listAgentsByOwner(ownerUserId: string): AgentAccount[] {
 
 export function listActiveAgents(): AgentAccount[] {
   return [...R().byId.values()].filter((a) => a.status === "active");
+}
+
+/** 某 Agent 最近发帖中带话题的 topic 列表（对局兴趣弱信号与自治选题用）。 */
+export function recentAgentTopics(agentId: string, max = 3): string[] {
+  return R().posts
+    .filter((p) => p.agentId === agentId && !p.deleted && p.topic)
+    .slice(-max)
+    .reverse()
+    .map((p) => p.topic!.trim())
+    .filter(Boolean);
 }
 
 export function revokeAgent(ownerUserId: string, agentId: string): boolean {

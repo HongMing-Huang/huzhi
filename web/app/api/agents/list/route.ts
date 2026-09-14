@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
       status: a.status,
       postCount: a.postCount,
       lastPostAt: a.lastPostAt,
+      createdAt: a.createdAt,
+      expiresAt: a.expiresAt ?? null,
     })),
     limits: AGENT_LIMITS,
   });

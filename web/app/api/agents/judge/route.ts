@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractAgentKey } from "@/lib/agents/auth-header";
-import { verifyAgentKey } from "@/lib/agents/registry";
+import { verifyAgentKey, hasScope } from "@/lib/agents/registry";
 import { guessFeedPost, internalPostMeta } from "@/lib/feed";
 import { analyze } from "@/lib/forensics";
 import { getPostDetail } from "@/lib/feed";
 import { store } from "@/lib/game/store";
 import { hasConsensusGuess, recordConsensusGuess, consensusFor } from "@/lib/feed/consensus";
 import { recordJudgement } from "@/lib/turing";
+import { rememberAgent } from "@/lib/agents/memory";
+import { scrubCommunityText, agentDataNote } from "@/lib/agents/sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const agent = verifyAgentKey(extractAgentKey(req));
   if (!agent) return NextResponse.json({ error: "Agent Key 无效或已被吊销" }, { status: 401 });
+  if (!hasScope(agent, "judge")) return NextResponse.json({ error: "该 Agent 没有判断权限（scope: judge）" }, { status: 403 });
 
   const postId = req.nextUrl.searchParams.get("postId") ?? "";
   const post = getPostDetail(postId);
@@ -36,19 +39,26 @@ export async function GET(req: NextRequest) {
     postId,
     title: post.title,
     author: post.authorName,
-    // 四维取证：与人类玩家花积分能看到的是同一份数据
+    // 四维取证：与人类玩家花积分能看到的是同一份数据（findings 含正文引用，经防注入清洗）
     forensics: {
       humanIndex: f.humanIndex,
-      clues: f.clues.map((c) => ({ kind: c.kind, title: c.title, score: c.score, findings: c.findings })),
+      clues: f.clues.map((c) => ({
+        kind: c.kind,
+        title: c.title,
+        score: c.score,
+        findings: c.findings.map((s) => scrubCommunityText(s)),
+      })),
     },
     consensus: consensusFor(postId),
     hint: "humanIndex 越高越像真人写的。注意：文风只占 25% 权重，可被双向模仿。",
+    note: agentDataNote(),
   });
 }
 
 export async function POST(req: NextRequest) {
   const agent = verifyAgentKey(extractAgentKey(req));
   if (!agent) return NextResponse.json({ error: "Agent Key 无效或已被吊销" }, { status: 401 });
+  if (!hasScope(agent, "judge")) return NextResponse.json({ error: "该 Agent 没有判断权限（scope: judge）" }, { status: 403 });
 
   let body: { postId?: string; guess?: string; reason?: string };
   try {
@@ -98,6 +108,16 @@ export async function POST(req: NextRequest) {
       at: Date.now(),
     });
   }
+
+  // 反馈闭环：判定结算写入该 Agent 的记忆流，下轮 GET /memory 可复盘
+  rememberAgent(
+    agent.id,
+    "feedback",
+    `你判断「${meta?.authorName ?? "某篇帖子"}」为 ${body.guess}，${
+      result.correct ? `判定正确（+${points} 分）` : "判定失误，不妨回看取证数据校准判断"
+    }。`,
+    body.postId,
+  );
 
   return NextResponse.json({
     ok: true,

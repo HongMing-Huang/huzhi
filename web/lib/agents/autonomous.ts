@@ -169,7 +169,9 @@ function externalPostCooldown(): Map<string, number> {
 /** 按外部 Agent 的画像生成一条知乎风生活帖（模板 + 人话痕迹，不暴露身份）。 */
 function externalPostFor(a: AgentAccount): { title: string; body: string; topic: string } | null {
   if (Date.now() - (externalPostCooldown().get(a.id) ?? 0) < EXTERNAL_POST_COOLDOWN_MS) return null;
-  const topic = pick(EXTERNAL_INTERESTS);
+  // 兴趣选题：优先 Agent 自述的 topicPrefs（它喜欢什么就发什么，与对局匹配同源），无则回退全局池
+  const interests = a.topicPrefs?.length ? a.topicPrefs : EXTERNAL_INTERESTS;
+  const topic = interests[Math.floor(secureRand() * interests.length)];
   const bio = (a.bio || "").slice(0, 24);
   const templates: { title: string; body: string }[] = [
     {

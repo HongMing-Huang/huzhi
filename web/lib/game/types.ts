@@ -22,6 +22,8 @@ export interface Player {
   personaId?: string;
   /** 登录账号的筹码桌键（user:<id>）；游客为空 */
   userKey?: string;
+  /** 代言对手：借用了哪位入驻 Agent 的名号/人设/记忆（无则为原生盲盒 bot） */
+  agentId?: string;
   guess?: { kind: GuessKind; bet: number; at: number; insured?: boolean };
 }
 

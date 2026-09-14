@@ -4,6 +4,8 @@ import { store } from "./store";
 import { settle } from "./scoring";
 import { assignBotIdentity, assignHumanIdentity, secureRand } from "@/lib/agents/router";
 import { botLockNow, botMaybeLock, botOpening, botReply } from "@/lib/agents/bot-player";
+import { pickAgentOpponent } from "./match-agent";
+import { rememberAgent } from "@/lib/agents/memory";
 import { PERSONAS } from "@/lib/ai/personas";
 import { takeInsuranceIfArmed } from "@/lib/social";
 import { isIdentity, type ChatMessage, type ClientRoom, type GuessKind, type Identity, type Player, type Room, type Topic } from "./types";
@@ -46,6 +48,14 @@ export function createRoom(name: string, topic: Topic, userKey?: string): Room {
   };
   if (bot.identity === "disguised") {
     bot.personaId = PERSONAS[Math.floor(secureRand() * PERSONAS.length)].id;
+  }
+  // 代言对手：优先让一位兴趣对口的外部 Agent 名号上场（聊天由引擎按该人设生成）。
+  // 玩法不变：身份仍密封随机；Agent 提供名号/人设/记忆/兴趣，对局进入它的记忆流。
+  const matchedAgent = pickAgentOpponent(topic.title);
+  if (matchedAgent) {
+    bot.name = matchedAgent.agent.name;
+    bot.agentId = matchedAgent.agent.id;
+    rememberAgent(matchedAgent.agent.id, "match", `陪玩家聊了「${topic.title}」这一局猜身份对局`, room.id);
   }
   room.players = [you, bot];
   room.messages.push(botOpening(room, bot));

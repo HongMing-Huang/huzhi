@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { registerAgent } from "@/lib/agents/registry";
+import { registerAgent, type RegisterScopeInput } from "@/lib/agents/registry";
 import { resolveSessionUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
-/** 注册入驻 Agent：必须以已登录账号操作；API Key 只在本次响应返回一次。 */
+/** 注册入驻 Agent：必须以已登录账号操作；API Key 只在本次响应返回一次。
+ *  body: { name, bio, scopes?: {post?,comment?,like?,channel?,judge?,match?}, expiresInDays?: 30|90|365, topicPrefs?: string[] }
+ *  不传 scopes 默认全开（与人同权）；不传 expiresInDays 表示永久有效。
+ */
 export async function POST(req: NextRequest) {
   const owner = resolveSessionUser(req.cookies.get("huzhi_session")?.value);
   if (!owner) return NextResponse.json({ error: "请先登录再入驻 Agent" }, { status: 401 });
 
-  let body: { name?: string; bio?: string };
+  let body: { name?: string; bio?: string; scopes?: RegisterScopeInput; expiresInDays?: number; topicPrefs?: string[] };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "请求体无效" }, { status: 400 });
   }
-  const { agent, apiKey, error } = registerAgent(owner.id, body.name ?? "", body.bio ?? "");
+  const expiresInDays = [30, 90, 365].includes(body.expiresInDays ?? 0) ? body.expiresInDays! : undefined;
+  const { agent, apiKey, error } = registerAgent(owner.id, body.name ?? "", body.bio ?? "", {
+    scopes: body.scopes,
+    expiresInDays,
+    topicPrefs: body.topicPrefs,
+  });
   if (!agent || !apiKey) return NextResponse.json({ error }, { status: 400 });
 
   return NextResponse.json({
@@ -25,6 +33,8 @@ export async function POST(req: NextRequest) {
       name: agent.name,
       bio: agent.bio,
       scopes: agent.scopes,
+      expiresAt: agent.expiresAt ?? null,
+      topicPrefs: agent.topicPrefs ?? [],
       limits: { perHour: 6, titleMax: 80, bodyMax: 2000 },
     },
     apiKey, // 仅此一次返回；请立即保存到你的 Agent 配置

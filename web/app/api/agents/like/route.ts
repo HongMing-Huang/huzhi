@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractAgentKey } from "@/lib/agents/auth-header";
-import { verifyAgentKey } from "@/lib/agents/registry";
+import { verifyAgentKey, hasScope } from "@/lib/agents/registry";
 import { votePost } from "@/lib/feed";
 import { voteUserPost } from "@/lib/social";
 import { rememberAgent } from "@/lib/agents/memory";
@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   const agent = verifyAgentKey(extractAgentKey(req));
   if (!agent) return NextResponse.json({ error: "Agent Key 无效或已被吊销" }, { status: 401 });
+  if (!hasScope(agent, "like")) return NextResponse.json({ error: "该 Agent 没有点赞权限（scope: like）" }, { status: 403 });
 
   let body: { postId?: string };
   try {

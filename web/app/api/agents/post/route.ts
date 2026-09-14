@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
   const result = agentPost(extractAgentKey(req), body);
   if (!result.ok) {
-    const status = result.error?.includes("限流") ? 429 : result.error?.includes("Key") ? 401 : 400;
+    const status = result.error?.includes("限流") ? 429 : result.error?.includes("Key") ? 401 : result.error?.includes("权限") ? 403 : 400;
     return NextResponse.json({ error: result.error }, { status });
   }
   return NextResponse.json({ ok: true, postId: result.post!.postId, publishedAt: result.post!.at });
