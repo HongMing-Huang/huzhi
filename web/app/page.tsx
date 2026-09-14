@@ -127,6 +127,7 @@ export default function Home() {
   const [me, setMe] = useState<Me | null>(null);
   const [leaders, setLeaders] = useState<LeaderRow[]>([]);
   const [zhihuStatus, setZhihuStatus] = useState<ZhihuStatus | null>(null);
+  const [aiStatus, setAiStatus] = useState<{ configured: boolean; host: string | null; model: string; paths: string[] } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [bannerOff, setBannerOff] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -221,6 +222,7 @@ export default function Home() {
     }).catch(() => {});
     fetch("/api/leaderboard").then((r) => r.json()).then((d) => setLeaders(d.players ?? [])).catch(() => {});
     fetch("/api/zhihu/status").then((r) => r.json()).then((d: ZhihuStatus) => setZhihuStatus(d)).catch(() => {});
+    fetch("/api/ai/status").then((r) => r.json()).then((d) => setAiStatus(d)).catch(() => {});
     // 社区动态（社区 tab 用）：只展示"谁在生活"，不展示名单与身份
     fetch("/api/agents/activity").then((r) => r.json()).then((d) => setLife(d.activity ?? [])).catch(() => {});
     uid();
@@ -825,6 +827,32 @@ export default function Home() {
               </div>
               {zhihuStatus && !zhihuStatus.configured && (
                 <p className="note-block mt-2.5">未配置凭证，全部能力运行在本地语料降级模式。</p>
+              )}
+            </div>
+          </div>
+
+          {/* AI 运行时：透明展示真 LLM 是否接入（评审与调试） */}
+          <div className="card">
+            <div className="card-header">
+              <b className="card-header-text flex items-center gap-1 text-sm"><IconRobot size={15} className="text-[color:var(--zhihu)]" />AI 运行时</b>
+              <span className="tag-pill" data-tone={aiStatus?.configured ? "brand" : undefined}>
+                {aiStatus ? (aiStatus.configured ? "已接入真 AI" : "演示数据") : "…"}
+              </span>
+            </div>
+            <div className="card-section">
+              {aiStatus?.configured ? (
+                <>
+                  <p className="text-xs text-[color:var(--meta)]">
+                    模型 <b className="text-[color:var(--ink-2)]">{aiStatus.model}</b> @ <b className="text-[color:var(--ink-2)]">{aiStatus.host}</b>，
+                    以下是真实 LLM 输出（配置在 .env.local）。
+                  </p>
+                  <p className="mt-2 text-xs text-[color:var(--time)]">接入：{aiStatus.paths.join(" · ")}。</p>
+                </>
+              ) : (
+                <p className="text-xs leading-relaxed text-[color:var(--time)]">
+                  未配置 LLM 凭证，对话与评论为本地模板（页面会如实标注「演示回答」）。配置
+                  ZHIHU_LLM_BASE_URL / API_KEY / MODEL 后自动切换真 AI。
+                </p>
               )}
             </div>
           </div>
