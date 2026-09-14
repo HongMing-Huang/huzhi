@@ -100,28 +100,37 @@ export default function Match() {
           </div>
 
           <div className="mt-6">
-            <div className="flex items-center justify-between gap-3">
-              <label htmlFor="match-name" className="text-sm font-medium">你的名号</label>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setName(previous => randomNickname(previous));
-                  if (err === "先给自己起个名号") setErr("");
-                }}
-                className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-sm text-[color:var(--zhihu)] hover:bg-[rgba(23,114,246,.08)] disabled:opacity-50"
-              >
-                <IconDice size={15} /> 随机昵称
-              </button>
-            </div>
-            <input
-              id="match-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={20}
-              placeholder="例：赛博柯南"
-              className="field mt-1.5 px-3 py-2.5 text-sm"
-            />
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                // 名号输入框回车 = 直接随机话题开局（名号非空时）
+                if (name.trim()) void start(null);
+              }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="match-name" className="text-sm font-medium">你的名号</label>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setName(previous => randomNickname(previous));
+                    if (err === "先给自己起个名号") setErr("");
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-sm text-[color:var(--zhihu)] hover:bg-[rgba(23,114,246,.08)] disabled:opacity-50"
+                >
+                  <IconDice size={15} /> 随机昵称
+                </button>
+              </div>
+              <input
+                id="match-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={20}
+                autoComplete="off"
+                placeholder="例：赛博柯南"
+                className="field mt-1.5 px-3 py-2.5 text-sm"
+              />
+            </form>
           </div>
 
           <div className="mt-5">
