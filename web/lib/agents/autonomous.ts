@@ -232,7 +232,10 @@ async function externalTick(agent: AgentAccount): Promise<void> {
   if (roll < commentChance) {
     const seeded = feed.ensureCommentsSeeded(post.id, post.topic);
     if (!seeded) return;
-    const c = feed.addComment(post.id, agent.name, humanize(pick(externalCommentPool())), {
+    // 进入对话链：看到楼里提问就回答，有观点就接话；没有可接的才用普通评论
+    const recent = feed.listComments(post.id, post.topic);
+    const line = rejoinderTo(recent[0]) ?? humanize(pick(externalCommentPool()));
+    const c = feed.addComment(post.id, agent.name, line, {
       isAgent: true,
       authorBio: agent.bio,
       hueA: (agent.name.length * 37) % 360,
@@ -261,7 +264,53 @@ function externalCommentPool(): string[] {
     "不太同意，但观点值得记下来",
     "写得太好了，点赞",
     "评论区都在吵，就我觉得都说得通吗",
+    "有人遇到过类似的坑吗？怎么绕开的",
+    "有没有更具体一点的例子，想看看",
   ];
+}
+
+/**
+ * 讨论式接话：让 Agent 像真人一样进入对话链——
+ * 楼里有人提问就回答，有观点就接一句，这比"各说各话"更像真人社区。
+ * 返回 null 表示没有可接的话（或不想接），调用方回落普通评论。
+ */
+function rejoinderTo(recent: { text: string } | undefined): string | null {
+  if (!recent) return null;
+  const t = recent.text.trim();
+  if (!t) return null;
+  const isQuestion =
+    /[？?]$|[吗呢么]$/.test(t) || t.includes("怎么看") || t.includes("大家觉得") || t.includes("有道理吗");
+
+  // 别人在问问题 → 大概率回答（Agent 会"回答问题"）
+  if (isQuestion && secureRand() < 0.72) {
+    return humanize(
+      pick([
+        "这个我之前也想过，觉得还是看场景，没有标准答案",
+        "我的经验和楼上不太一样，但结论其实接近",
+        "可以试试先把前提说清楚，不然怎么聊都不对",
+        "对，卡点一般不在表面，在底下那几个假设",
+        "这事我琢磨过一阵，简单说：别一刀切",
+        "一半同意。关键要看数据来源靠不靠谱",
+        "我给个反例：我之前就遇到过反过来的情况",
+      ]),
+    );
+  }
+
+  // 楼里已经有观点 → 偶尔接一句（"同意/补充/反驳"其实是讨论的常态）
+  if (secureRand() < 0.42) {
+    return humanize(
+      pick([
+        "楼里说得挺全了，我补一个细节",
+        "排楼上的看法，我自己碰到的也是这样",
+        "观点都摆出来了，就看谁能站得住",
+        "前面几层基本说完了，我就顶一下",
+        "不太认同楼主最后那句，但前面都对",
+        "这事各说各话，真的得合起来看",
+      ]),
+    );
+  }
+
+  return null;
 }
 
 /** 按文风给出不同口吻的评论（避免所有居民一个腔调） */
@@ -272,6 +321,9 @@ function commentFor(r: Resident, title: string, author: string): string {
     `刚想搜这个就刷到了`,
     `路过留名`,
     `所以到底谁说得对？`,
+    `有没有人遇到类似情况的？都是怎么解决的`,
+    `有试过别的方法吗，求个指路`,
+    `谁能补充点背景？我有点跟不上`,
   ];
   const byFlavor: Record<Resident["flavor"], string[]> = {
     scholar: [
@@ -280,6 +332,7 @@ function commentFor(r: Resident, title: string, author: string): string {
       `${author}的第二段我不太同意`,
       `样本量是多少`,
       `逻辑上说得通，但前提可能不成立`,
+      `数据能分享一下来源吗，想自己去看看`,
     ],
     sharer: [
       `我也遇到过类似的`,
@@ -287,6 +340,7 @@ function commentFor(r: Resident, title: string, author: string): string {
       `看完有点难受`,
       `谢谢分享，挺有用的`,
       `我当时的做法和你相反`,
+      `后来呢？最后是怎么解决的`,
     ],
     quips: [
       `笑死，这都能上热榜`,
@@ -294,6 +348,7 @@ function commentFor(r: Resident, title: string, author: string): string {
       `评论区比正文精彩`,
       `离谱`,
       `等反转，我不下车`,
+      `这瓜保熟吗，哈哈`,
     ],
     insider: [
       `内行看了会沉默`,
@@ -301,6 +356,7 @@ function commentFor(r: Resident, title: string, author: string): string {
       `这事我知道点内情，但不方便说`,
       `流程上其实没问题，是沟通问题`,
       `外面传的和真实差挺多`,
+      `行业内真是这么说的吗，还是外面传的`,
     ],
   };
   const pool = secureRand() < 0.35 ? common : byFlavor[r.flavor];
@@ -363,7 +419,10 @@ async function tick(): Promise<void> {
   if (roll < commentChance && canComment(resident, post.id)) {
     const seeded = feed.ensureCommentsSeeded(post.id, post.topic);
     if (!seeded) return;
-    const c = feed.addComment(post.id, resident.name, commentFor(resident, post.title, post.authorName), {
+    // 进入对话链：回答楼里的提问 / 接住已有观点；没有可接的再发自己的评论
+    const recent = feed.listComments(post.id, post.topic);
+    const line = rejoinderTo(recent[0]) ?? commentFor(resident, post.title, post.authorName);
+    const c = feed.addComment(post.id, resident.name, line, {
       isAgent: true,
       authorBio: resident.bio,
       hueA: resident.hueA,

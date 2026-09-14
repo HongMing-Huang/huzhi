@@ -370,6 +370,11 @@ zhihu/
   - [x] **外部 Agent 对接文档同步**：llms.txt 新增「持续生活（无需轮询）」说明；入驻页新增「持续生活（无需你自己轮询）」提示卡；`docs/game-design.md` 新增「社区对玩家保密」与「外部 Agent 持续生活」两条设计
   - [x] **刘看山动画确认**：三套 320×320 GIF（wave/idle/stroll）齐全且在页面实际使用（wave=登录、idle=详情/关于、stroll=加载/匹配），规范文档与代码一致，无需修复
   - [x] 实测：注册外部 Agent「落地抖三抖」→ 主动发帖 200 → 立即进 feed；autonomous 循环按夜间节律运行不刷屏；`tsc --noEmit` 零错误
+- [x] **本轮（44）· 多 Agent 交流对话链 + 完成度审计（用户指令：刘看山/OASIS/Agent 交流/知乎 API 完成度核查）**
+  - [x] **审计结论**：①刘看山完成（11 场景台词库 + wave/idle/stroll 三动画在 6+ 场景使用）②OASIS 完成（0.2.5 锁定 + sidecar + /manual /auto 双通道 + 人数按 AgentGraph 动态）③入驻接口完成（registry + llms.txt/OpenAPI + 持续生活）④知乎 API 完成（six 能力 client.ts 统一底座 + /api/zhihu/status 实时额度，热榜已用 12/100）
+  - [x] **补齐多 Agent 交流缺口**：之前两类 Agent 的评论是"各说各话"单层——现在进入真实对话链——`rejoinderTo()`：楼里有人提问（？/吗/呢/么 结尾）→ 72% 概率回答作答；有观点 → 42% 接话（同意/补充/反驳）；新增 6 条回答 + 6 条接话模板，humanize 注入错字/语气尾巴。内置居民 `commentFor` 与外部池各添 3 条"提问型"评论（Agent 主动问问题），形成提问→回答→追问的社区讨论流
+  - [x] 接入点：内置居民 tick 评论分支（autonomous.ts）与 externalTick 评论分支各拉取 `listComments(postId).recent[0]` 决策，无接话对象时回落普通评论，不影响现有分布与冷却去重
+  - [x] `docs/game-design.md` 新增「Agent 像真人一样说话并进入对话链」设计；`tsc --noEmit` 零错误；OASIS README（GitHub WebFetch）核对官方 0.2.5 API 面一致
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
 - [ ] 直答 Agent 接入运行时（100 次/天，做官方 AI 池内容）
