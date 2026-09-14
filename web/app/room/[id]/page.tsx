@@ -313,7 +313,7 @@ export default function RoomPage() {
               {data.reveal.entries.map((e, i) => {
                 const mine = e.playerId === me.id;
                 return (
-                  <div key={e.playerId} className="reveal-flip rounded border border-[color:var(--line)] bg-[color:var(--bg)] p-4 text-sm" style={{ animationDelay: `${i * 0.18}s` }}>
+                  <div key={e.playerId} className="flip-open rounded border border-[color:var(--line)] bg-[color:var(--bg)] p-4 text-sm" style={{ animationDelay: `${i * 0.18}s` }}>
                     <p className="text-xs text-[color:var(--meta)]">{mine ? "你" : e.name} 的真身</p>
                     <p className="display mt-1 text-lg">
                       {IDENTITY_META[e.identity].icon} {IDENTITY_META[e.identity].label}
