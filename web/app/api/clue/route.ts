@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `积分不足（需要 ${clue.cost}，当前 ${balance}）` }, { status: 400 });
   }
 
-  const bank = store.addBank(bankKey, -clue.cost);
+  const bank = store.addBank(bankKey, -clue.cost, `翻开取证：${clue.title}`);
   return NextResponse.json({
     clue: { kind: clue.kind, title: clue.title, score: clue.score, findings: clue.findings },
     cost: clue.cost,

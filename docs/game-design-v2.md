@@ -2,6 +2,8 @@
 
 > 依据：本轮 Exa/GitHub 调研（3 个子代理，sources_reviewed = 149）+ 17 轮代码审计。
 > 原则：**不换框架、不引重依赖**，全部机制落在现有 `web/lib/` 结构上；LLM 可选、mock 可玩。
+>
+> 技术选型更新（2026-09-14）：玩法规则仍有效；“不换框架”的旧实现原则已被用户要求覆盖。Agent 社交行为底座最终采用锁定版本的 CAMEL-AI OASIS，见 `docs/research/oasis-foundation-decision-v36.md`。
 > 调研证据与项目清单见文末「基座调研结论」。
 
 ---

@@ -5,6 +5,7 @@ import { settle } from "./scoring";
 import { assignBotIdentity, assignHumanIdentity, secureRand } from "@/lib/agents/router";
 import { botLockNow, botMaybeLock, botOpening, botReply } from "@/lib/agents/bot-player";
 import { PERSONAS } from "@/lib/ai/personas";
+import { takeInsuranceIfArmed } from "@/lib/social";
 import { isIdentity, type ClientRoom, type GuessKind, type Identity, type Player, type Room, type Topic } from "./types";
 
 const MAX_ROUNDS = 5;
@@ -114,7 +115,12 @@ export function submitGuess(room: Room, playerId: string, kind: GuessKind, bet: 
   if (player.guess) throw new Error("已锁定过猜测，不能改注");
   const bank = store.bank(bankKey(player, room.id));
   if (bet > bank) throw new Error(`筹码不足（你有 ${bank}）`);
-  player.guess = { kind, bet, at: Date.now() };
+  player.guess = {
+    kind,
+    bet,
+    at: Date.now(),
+    insured: player.userKey ? takeInsuranceIfArmed(player.userKey) : false,
+  };
 
   const bot = room.players.find((p) => p.isBot);
   if (bot && !bot.guess) {
@@ -130,7 +136,7 @@ export function finishReveal(room: Room): void {
   if (room.phase === "reveal") return;
   const changes = settle(room);
   for (const p of room.players) {
-    store.addBank(bankKey(p, room.id), changes[p.id] ?? 0);
+    store.addBank(bankKey(p, room.id), changes[p.id] ?? 0, `灵魂对局 ${room.id} 结算`);
   }
   room.phase = "reveal";
   store.set(room);
@@ -151,7 +157,7 @@ export function toClientRoom(room: Room, viewerId: string, dataSource?: string):
       identity: you.identity as Identity,
       personaId: you.personaId,
       bank: store.bank(bankKey(you, room.id)),
-      guess: you.guess ? { kind: you.guess.kind, bet: you.guess.bet } : undefined,
+      guess: you.guess ? { kind: you.guess.kind, bet: you.guess.bet, insured: you.guess.insured } : undefined,
       points: room.reveal?.entries.find((e) => e.playerId === you.id)?.points ?? 0,
     },
     opponent: { id: opp.id, name: opp.name, hasGuessed: Boolean(opp.guess) },

@@ -5,10 +5,9 @@ import { searchZhihu, hasSearchCredential } from "@/lib/zhihu/search";
 import { getQuestionAnswers } from "@/lib/zhihu/discovery";
 import { generateAgentPosts, randomSalt } from "./generate";
 import { residentById, RESIDENTS } from "./residents";
-import { listAgentPosts, listAgentComments, getAgentById, getAgentPost } from "@/lib/agents/registry";
+import { listAgentPosts, listAgentComments, getAgentById, getAgentPost, voteAgentPost } from "@/lib/agents/registry";
 import { listUserPosts, userPostToClient, getUserPost, bumpCommentCount } from "@/lib/social";
 import { loadCollection, saveCollection } from "../db";
-import { ensureAgentLife } from "@/lib/agents/autonomous";
 import type { GuessKind } from "@/lib/game/types";
 import { evolutionVersion } from "@/lib/agents/evolution";
 import { consensusFor } from "./consensus";
@@ -263,7 +262,7 @@ function syncAgentPosts(state: FeedState): void {
       title: rec.title,
       excerpt: rec.body.slice(0, 400),
       body: rec.body,
-      votes: pseudoVotes(seed + "v", 3, 900),
+      votes: rec.votes ?? pseudoVotes(seed + "v", 3, 900),
       comments: commentCountFor(rec.postId),
       topic: rec.topic ?? "Agent 投稿",
       channelId: rec.channelId,
@@ -427,7 +426,7 @@ function findPost(postId: string): FeedPost | undefined {
       title: rec.title,
       excerpt: rec.body.slice(0, 400),
       body: rec.body,
-      votes: pseudoVotes(seed + "v", 3, 900),
+      votes: rec.votes ?? pseudoVotes(seed + "v", 3, 900),
       comments: commentCountFor(rec.postId),
       topic: rec.topic ?? "Agent 投稿",
       channelId: rec.channelId,
@@ -584,6 +583,13 @@ const voteSets = (g.__huzhiVoteSets ??= new Map<string, Set<string>>());
 export function votePost(postId: string, uid: string): { ok: boolean; votes?: number } {
   const post = findPost(postId);
   if (!post) return { ok: false };
+  const agentPost = getAgentPost(postId);
+  if (agentPost) {
+    const votes = voteAgentPost(postId, uid, post.votes);
+    if (votes == null) return { ok: false };
+    post.votes = votes;
+    return { ok: true, votes };
+  }
   let set = voteSets.get(postId);
   if (!set) voteSets.set(postId, (set = new Set()));
   if (set.has(uid)) return { ok: true, votes: post.votes };

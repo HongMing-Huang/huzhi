@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 404 });
 
   const points = result.points ?? 0;
-  const bank = store.addBank(bankKey, points);
+  const bank = store.addBank(bankKey, points, result.correct ? "Agent 判断正确" : "Agent 判断失误");
 
   recordConsensusGuess({
     postId: body.postId,

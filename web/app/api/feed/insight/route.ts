@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (user && userKey) {
-    const bank = store.addBank(userKey, 5);
+    const bank = store.addBank(userKey, 5, "提交识破理由");
     return NextResponse.json({ ok: true, points: 5, bank });
   }
   return NextResponse.json({ ok: true, points: 0, note: "已记录（登录后提交可得 5 筹码）" });

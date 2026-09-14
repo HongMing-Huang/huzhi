@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const bank = store.addBank(bankKey, points);
+  const bank = store.addBank(bankKey, points, result.correct ? "信息流判断正确" : "信息流判断失误");
   return NextResponse.json({
     correct: result.correct,
     identity: result.identity,

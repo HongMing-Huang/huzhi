@@ -7,16 +7,28 @@ export interface GameStore {
   set(room: Room): void;
   list(): Room[];
   bank(key: string): number;
-  addBank(key: string, delta: number): number;
+  addBank(key: string, delta: number, reason?: string): number;
+  ledger(key: string, limit?: number): BankEntry[];
+}
+
+export interface BankEntry {
+  id: string;
+  key: string;
+  delta: number;
+  balance: number;
+  reason: string;
+  at: number;
 }
 
 const ROOMS_FILE = "rooms";
 const BANKS_FILE = "banks";
+const LEDGER_FILE = "bank_ledger";
 const START_BANK = 1000;
 
 const g = globalThis as unknown as {
   __turingRooms?: Map<string, Room>;
   __turingBanks?: Map<string, number>;
+  __turingLedger?: BankEntry[];
   __turingLoaded?: boolean;
 };
 
@@ -28,6 +40,10 @@ function init(): { rooms: Map<string, Room>; banks: Map<string, number> } {
   g.__turingRooms = rooms;
   g.__turingBanks = banks;
   return { rooms, banks };
+}
+
+function ledgerRows(): BankEntry[] {
+  return (g.__turingLedger ??= loadCollection<{ list: BankEntry[] }>(LEDGER_FILE, { list: [] }).list);
 }
 
 function saveRooms(rooms: Map<string, Room>): void {
@@ -52,12 +68,28 @@ class MemoryStore implements GameStore {
   bank(key: string): number {
     return init().banks.get(key) ?? START_BANK; // 新筹码桌：开局赠 1000
   }
-  addBank(key: string, delta: number): number {
+  addBank(key: string, delta: number, reason = "余额调整"): number {
     const { banks } = init();
     const next = Math.max(0, (banks.get(key) ?? START_BANK) + delta);
     banks.set(key, next);
     saveCollection(BANKS_FILE, Object.fromEntries(banks));
+    if (delta !== 0) {
+      const rows = ledgerRows();
+      rows.push({
+        id: `bl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+        key,
+        delta,
+        balance: next,
+        reason: reason.slice(0, 80),
+        at: Date.now(),
+      });
+      if (rows.length > 2000) rows.splice(0, rows.length - 2000);
+      saveCollection(LEDGER_FILE, { list: rows });
+    }
     return next;
+  }
+  ledger(key: string, limit = 20): BankEntry[] {
+    return ledgerRows().filter((row) => row.key === key).slice(-Math.max(1, Math.min(50, limit))).reverse();
   }
 }
 

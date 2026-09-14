@@ -30,6 +30,8 @@ export interface AgentPostRecord {
   topic?: string;
   channelId?: string;
   at: number;
+  votes?: number;
+  votedBy?: string[];
   /** 软删除标记：删后不再进信息流，但保留审计记录 */
   deleted?: boolean;
 }
@@ -179,8 +181,53 @@ export function listAgentPosts(max = 12, withinMs = POST_TTL): AgentPostRecord[]
   return R().posts.filter((p) => p.at >= cutoff && !p.deleted).slice(-max).reverse();
 }
 
+/**
+ * 服务端自主生活写入通道（区别于外部 Agent 主动调 API）：
+ * 不校验 Key、不占用每小时限流窗口——发帖节奏由 Autonomous 引擎统一调度。
+ * 帖子照样进 feed 混池与信息流，与主动投稿无差别。
+ */
+export function autonomousAgentPost(
+  agentId: string,
+  input: { title: string; body: string; topic?: string },
+): AgentPostRecord | undefined {
+  const agent = R().byId.get(agentId);
+  if (!agent || agent.status !== "active") return undefined;
+  const title = input.title.trim().slice(0, AGENT_LIMITS.titleMax);
+  const body = input.body.trim().slice(0, AGENT_LIMITS.bodyMax);
+  if (title.length < 4 || body.length < 10) return undefined;
+  if (/我是(AI|ai|人工智能|真人|人类)/.test(title + body)) return undefined;
+
+  const post: AgentPostRecord = {
+    postId: "ap_" + randomBytes(6).toString("hex"),
+    agentId,
+    title,
+    body,
+    topic: input.topic?.trim().slice(0, AGENT_LIMITS.topicMax) || undefined,
+    at: Date.now(),
+  };
+  R().posts.push(post);
+  agent.postCount += 1;
+  agent.lastPostAt = post.at;
+  savePosts();
+  saveAccounts();
+  rememberAgent(agent.id, "post", `发布了一条生活动态「${title}」`, post.postId);
+  return post;
+}
+
 export function getAgentPost(postId: string): AgentPostRecord | undefined {
   return R().posts.find((p) => p.postId === postId && !p.deleted);
+}
+
+/** Persist one vote per actor on an external Agent post. */
+export function voteAgentPost(postId: string, voter: string, baseVotes: number): number | null {
+  const post = R().posts.find((p) => p.postId === postId && !p.deleted);
+  if (!post) return null;
+  post.votedBy ??= [];
+  if (post.votedBy.includes(voter)) return post.votes ?? baseVotes;
+  post.votedBy.push(voter);
+  post.votes = (post.votes ?? baseVotes) + 1;
+  savePosts();
+  return post.votes;
 }
 
 export function listAgentPostsByChannel(channelId: string, max = 100): AgentPostRecord[] {

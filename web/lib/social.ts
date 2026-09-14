@@ -1,6 +1,7 @@
 // 社区互动层：真人发帖（human 池）+ 道具库存 + 商店。全部持久化（重启不丢）。
 import { randomUUID } from "node:crypto";
 import { loadCollection, saveCollection } from "./db";
+import { store } from "@/lib/game/store";
 import type { GuessKind } from "@/lib/game/types";
 
 export interface UserPost {
@@ -30,6 +31,7 @@ interface UserPostsFile {
 export const SHOP_ITEMS = {
   xray: { name: "透视镜", price: 200, desc: "查看任意一篇帖子「AI 还是真人」的判定与理由（不加分不扣分）" },
   double: { name: "双倍卡", price: 150, desc: "下一次猜帖积分翻倍：识破 AI +60，误判 −40" },
+  insurance: { name: "止损券", price: 120, desc: "装填后用于下一场 1v1；若误判，回收自己一半注金，猜身份分照常结算" },
 } as const;
 
 export type ShopItemKey = keyof typeof SHOP_ITEMS;
@@ -37,7 +39,8 @@ export type ShopItemKey = keyof typeof SHOP_ITEMS;
 const g = globalThis as unknown as {
   __huzhiUserPosts?: Map<string, UserPost & { votedSet?: Set<string> }>;
   __huzhiInventory?: Map<string, Record<string, number>>;
-  __huzhiEffects?: Map<string, { doubleNext?: boolean }>;
+  __huzhiEffects?: Map<string, { doubleNext?: boolean; insuranceNext?: boolean }>;
+  __huzhiCheckins?: Map<string, CheckinState>;
   __huzhiSocialLoaded?: boolean;
 };
 
@@ -70,14 +73,74 @@ function saveInv(): void {
   saveCollection("inventory", Object.fromEntries(m));
 }
 
-function initEffects(): Map<string, { doubleNext?: boolean }> {
+function initEffects(): Map<string, { doubleNext?: boolean; insuranceNext?: boolean }> {
   if (g.__huzhiEffects) return g.__huzhiEffects;
-  g.__huzhiEffects = new Map(Object.entries(loadCollection<Record<string, { doubleNext?: boolean }>>("effects", {})));
+  g.__huzhiEffects = new Map(Object.entries(loadCollection<Record<string, { doubleNext?: boolean; insuranceNext?: boolean }>>("effects", {})));
   return g.__huzhiEffects;
 }
 
 function saveEffects(): void {
   saveCollection("effects", Object.fromEntries(initEffects()));
+}
+
+// ———— 每日签到 ————
+
+interface CheckinState {
+  lastDate: string; // YYYY-MM-DD
+  streak: number;
+}
+
+const CHECKIN_FILE = "checkins";
+const CHECKIN_BASE = 50;
+const CHECKIN_STREAK_BONUS = 10; // 每多连续一天 +10，封顶 5 天
+const CHECKIN_MAX_STREAK = 5;
+
+function dayKey(d = new Date()): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function initCheckins(): Map<string, CheckinState> {
+  if (g.__huzhiCheckins) return g.__huzhiCheckins;
+  g.__huzhiCheckins = new Map(Object.entries(loadCollection<Record<string, CheckinState>>(CHECKIN_FILE, {})));
+  return g.__huzhiCheckins;
+}
+
+function saveCheckins(): void {
+  saveCollection(CHECKIN_FILE, Object.fromEntries(initCheckins()));
+}
+
+/** 读取签到状态（今日是否已签、连续天数）。 */
+export function getCheckinState(key: string): { doneToday: boolean; streak: number; rewardToday: number } {
+  const m = initCheckins();
+  const s = m.get(key);
+  const today = dayKey();
+  const doneToday = s?.lastDate === today;
+  const streak = s?.streak ?? 0;
+  const rewardToday = CHECKIN_BASE + Math.min(streak, CHECKIN_MAX_STREAK - 1) * CHECKIN_STREAK_BONUS;
+  return { doneToday, streak, rewardToday };
+}
+
+/** 执行签到：已签返回 error；否则发积分并更新连续天数。 */
+export function doCheckin(key: string): { ok: boolean; error?: string; reward?: number; streak?: number; bank?: number } {
+  const m = initCheckins();
+  const today = dayKey();
+  const s = m.get(key);
+
+  if (s?.lastDate === today) {
+    return { ok: false, error: "今天已经签到过了，明天再来吧" };
+  }
+
+  // 判断连续：昨天签过则 +1，否则重置为 1
+  const yesterday = dayKey(new Date(Date.now() - 86400000));
+  const streak = s?.lastDate === yesterday ? (s.streak ?? 0) + 1 : 1;
+
+  const reward = CHECKIN_BASE + Math.min(streak - 1, CHECKIN_MAX_STREAK - 1) * CHECKIN_STREAK_BONUS;
+
+  const bank = store.addBank(key, reward, `连续签到第 ${streak} 天`);
+
+  m.set(key, { lastDate: today, streak });
+  saveCheckins();
+  return { ok: true, reward, streak, bank };
 }
 
 // ———— 真人发帖 ————
@@ -204,7 +267,7 @@ function invOf(key: string): Record<string, number> {
 }
 
 export function getInventory(key: string): Record<string, number> {
-  return { xray: 0, double: 0, ...invOf(key) };
+  return { xray: 0, double: 0, insurance: 0, ...invOf(key) };
 }
 
 export function buyItem(key: string, item: ShopItemKey, bank: number): { ok: boolean; error?: string; bank?: number } {
@@ -239,6 +302,24 @@ export function takeDoubleIfArmed(key: string): boolean {
   const e = initEffects().get(key);
   if (!e?.doubleNext) return false;
   e.doubleNext = false;
+  saveEffects();
+  return true;
+}
+
+/** 止损券：先从库存装填，在下一次有效 1v1 锁注时消耗效果。 */
+export function armInsurance(key: string): boolean {
+  if (!consumeItem(key, "insurance")) return false;
+  const e = initEffects().get(key) ?? {};
+  e.insuranceNext = true;
+  initEffects().set(key, e);
+  saveEffects();
+  return true;
+}
+
+export function takeInsuranceIfArmed(key: string): boolean {
+  const e = initEffects().get(key);
+  if (!e?.insuranceNext) return false;
+  e.insuranceNext = false;
   saveEffects();
   return true;
 }

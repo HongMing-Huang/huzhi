@@ -266,6 +266,7 @@ export default function RoomPage() {
           {me.guess ? (
             <p className="text-center text-sm text-[color:var(--meta)]">
               已锁定：猜「{IDENTITY_META[me.guess.kind].label}」押 <b className="tnum text-[color:var(--gold)]">{me.guess.bet}</b>。
+              {me.guess.insured && <span className="ml-1 text-[color:var(--zhihu)]">止损券已生效。</span>}
               {data.opponent.hasGuessed ? "双方已就位，正在开牌…" : "等对方锁注后自动开牌。"}
             </p>
           ) : (

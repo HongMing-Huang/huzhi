@@ -22,7 +22,7 @@ export interface Player {
   personaId?: string;
   /** 登录账号的筹码桌键（user:<id>）；游客为空 */
   userKey?: string;
-  guess?: { kind: GuessKind; bet: number; at: number };
+  guess?: { kind: GuessKind; bet: number; at: number; insured?: boolean };
 }
 
 export interface ChatMessage {
@@ -75,7 +75,7 @@ export interface ClientRoom {
     identity: Identity;
     personaId?: string;
     bank: number;
-    guess?: { kind: GuessKind; bet: number };
+    guess?: { kind: GuessKind; bet: number; insured?: boolean };
     points: number;
   };
   opponent: { id: string; name: string; hasGuessed: boolean };

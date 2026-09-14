@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     // 登录用户才计分（游客可玩但不落账）
     const user = resolveSessionUser(req.cookies.get("huzhi_session")?.value);
     let bank: number | undefined;
-    if (user) bank = store.addBank(bankKeyForUser(user.id), r.points ?? 0);
+    if (user) bank = store.addBank(bankKeyForUser(user.id), r.points ?? 0, "代笔现场判断");
 
     return NextResponse.json({
       correct: r.correct,

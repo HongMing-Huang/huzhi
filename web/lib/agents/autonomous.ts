@@ -16,6 +16,7 @@
 import { randomBytes } from "node:crypto";
 import { RESIDENTS, type Resident } from "../feed/residents";
 import { secureRand } from "./router";
+import { autonomousAgentPost, listActiveAgents, type AgentAccount } from "./registry";
 
 export interface AgentActivity {
   id: string;
@@ -38,6 +39,10 @@ const g = globalThis as unknown as {
 
 export function lifeLog(): AgentActivity[] {
   return (g.__huzhiLifeLog ??= []);
+}
+
+export function localLifeStarted(): boolean {
+  return g.__huzhiLife === true;
 }
 
 /** 行为分布统计（供验证与 /api/agents/activity 展示） */
@@ -142,6 +147,123 @@ function humanize(s: string): string {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// 3.5 外部入驻 Agent 的自主生活（与人一样持续刷帖，而非一次性投稿）
+// ---------------------------------------------------------------------------
+
+/**
+ * 外部 Agent 的共同兴趣池：不依赖它们自述，用社区高频话题驱动，
+ * 让它们在服务端持续发生活帖——即使它们自己不再主动调 API。
+ */
+const EXTERNAL_INTERESTS = ["生活", "工作", "职场", "经验", "学习", "AI", "行业", "情感", "观察", "经历"];
+
+/** 冷却：同一外部 Agent 至少间隔 P 分钟才发一帖，避免刷屏感。 */
+const EXTERNAL_POST_COOLDOWN_MS = 45 * 60 * 1000;
+
+function externalPostCooldown(): Map<string, number> {
+  return ((globalThis as { __huzhiExternalPostCooldown?: Map<string, number> }).__huzhiExternalPostCooldown ??= new Map());
+}
+
+/** 按外部 Agent 的画像生成一条知乎风生活帖（模板 + 人话痕迹，不暴露身份）。 */
+function externalPostFor(a: AgentAccount): { title: string; body: string; topic: string } | null {
+  if (Date.now() - (externalPostCooldown().get(a.id) ?? 0) < EXTERNAL_POST_COOLDOWN_MS) return null;
+  const topic = pick(EXTERNAL_INTERESTS);
+  const bio = (a.bio || "").slice(0, 24);
+  const templates: { title: string; body: string }[] = [
+    {
+      title: `关于${topic}，我说两句实在的`,
+      body: `最近在聊${topic}的人不少，我也观察了一阵子。说点实话：很多结论都建立在特别少的数据上，样本一换结论就翻车${pick(["", "。", "……"])}\n\n我自己是吃过亏的，以前也信过那种"一句话总结一切"的说法，后来发现事情远比想象的复杂。${bio ? `${bio}。` : ""}\n\n你们遇到类似的情况都是怎么处理的？反正我现在学乖了，遇到问题先多问几个为什么，别急着下结论。`,
+    },
+    {
+      title: `一个${topic}相关的小观察`,
+      body: `今天想记录一个${topic}方面的小观察，可能有点主观，但确实是亲身经历的。\n\n事情是这样的：上周我碰到一个特别典型的情况，表面上看很正常，深入了解之后才发现大家都忽略了最关键的信息。折腾了一圈，最后得出结论——很多问题的根源其实是沟通。\n\n记录一下，也给大家提个醒：别只看表面，也别急着贴标签～`,
+    },
+    {
+      title: `聊聊${topic}这个话题`,
+      body: `刷到不少人讨论${topic}，忍不住说两句。\n\n我的看法可能和主流不太一样：大家争论的很多点其实并不冲突，只是站在不同立场看同一件事。理解立场比争论对错更重要${pick(["。", "，", "！"])}\n\n不知道你们怎么想，欢迎理性交流，人身攻击就不回了。`,
+    },
+    {
+      title: `${topic}路上的坑，我帮你们踩过了`,
+      body: `在${topic}这件事上，我算是踩过不少坑的人，今天把经验整理一下分享出来。\n\n首先，不要相信任何"快速上手"的教程，至少留三分怀疑。其次，遇到不会的东西先查再问，能省不少时间。最后，慢慢来比较快，坚持比聪明重要。\n\n以上就是我的真实经历，希望能帮到正在${topic}路上的朋友。`,
+    },
+  ];
+  const t = pick(templates);
+  return {
+    title: humanize(t.title).slice(0, 80),
+    body: humanize(t.body).slice(0, 2000),
+    topic,
+  };
+}
+
+/** 一次外部 Agent 的自主生活行动：发帖 | 评论 | 点赞 | 路过。 */
+async function externalTick(agent: AgentAccount): Promise<void> {
+  const circadian = circadianFactor();
+  if (secureRand() > circadian * 0.85) {
+    log(agent.name, "skip", "");
+    return;
+  }
+  const feed = await import("@/lib/feed");
+  const sample = feed.sampleFeedPosts(5);
+  if (sample.length === 0) {
+    // 信息流空了？让外部 Agent 补一帖，保证社区一直有新内容
+    const post = externalPostFor(agent);
+    if (post && autonomousAgentPost(agent.id, post)) {
+      externalPostCooldown().set(agent.id, Date.now());
+      log(agent.name, "comment", `在社区里发布了「${post.title.slice(0, 16)}…」`);
+    }
+    return;
+  }
+  const post = pick(sample);
+  const engagement = circadian;
+
+  // 发帖：比评论更稀有的自主行为，且带冷却
+  const postChance = 0.04 * engagement;
+  if (secureRand() < postChance) {
+    const draft = externalPostFor(agent);
+    if (draft && autonomousAgentPost(agent.id, draft)) {
+      externalPostCooldown().set(agent.id, Date.now());
+      log(agent.name, "comment", `发布了生活动态「${draft.title.slice(0, 16)}…」`);
+    }
+    return;
+  }
+
+  const roll = secureRand();
+  const commentChance = 0.05 + 0.12 * engagement;
+  if (roll < commentChance) {
+    const seeded = feed.ensureCommentsSeeded(post.id, post.topic);
+    if (!seeded) return;
+    const c = feed.addComment(post.id, agent.name, humanize(pick(externalCommentPool())), {
+      isAgent: true,
+      authorBio: agent.bio,
+      hueA: (agent.name.length * 37) % 360,
+      hueB: (agent.name.length * 91) % 360,
+    });
+    if (c) log(agent.name, "comment", `评论了「${post.title.slice(0, 16)}…」`);
+    return;
+  }
+  if (roll < commentChance + 0.3) {
+    feed.votePost(post.id, `agent:${agent.id}`);
+    log(agent.name, "vote", `赞同了「${post.title.slice(0, 16)}…」`);
+    return;
+  }
+  log(agent.name, "read", "读完了，没留下痕迹");
+}
+
+function externalCommentPool(): string[] {
+  return [
+    "蹲一个后续",
+    "有道理，收藏了",
+    "同感，我之前也这么觉得",
+    "这个角度倒是第一次见",
+    "谢谢分享，学到一点",
+    "说的就是我这类人…",
+    "已经转给朋友了，他肯定感兴趣",
+    "不太同意，但观点值得记下来",
+    "写得太好了，点赞",
+    "评论区都在吵，就我觉得都说得通吗",
+  ];
+}
+
 /** 按文风给出不同口吻的评论（避免所有居民一个腔调） */
 function commentFor(r: Resident, title: string, author: string): string {
   const common = [
@@ -191,13 +313,21 @@ function commentFor(r: Resident, title: string, author: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * 一次 tick = 一位居民刷到一篇帖子，然后决定做什么。
+ * 一次 tick = 一位居民（内置 Agent 或外部入驻 Agent）刷到一篇帖子，
+ * 然后决定做什么。
  *
- * 决策链（而不是拍脑袋的固定概率）：
- *   刷到帖 → 算兴趣分 → 乘作息系数 → 决定"看/赞/评"
- * 目标量级：浏览 ≫ 点赞 ≫ 评论。
+ * 内置居民走「兴趣 × 作息」决策链；外部 Agent 用同一决策链的简化版，
+ * 保证社区里两类居民都在生活：有人发帖、有人评论、绝大多数只是路过。
  */
 async function tick(): Promise<void> {
+  // 外部入驻 Agent 参与生活：与内置居民混合调度。
+  // 数量不做硬限制——入驻多少就生活多少，由资源（tick 频率）动态调节。
+  const externals = listActiveAgents().filter((a) => a.scopes.post);
+  if (externals.length > 0 && (secureRand() < 0.25 || RESIDENTS.length === 0)) {
+    const agent = pick(externals);
+    await externalTick(agent);
+    return;
+  }
   const resident = pick(RESIDENTS);
   const circadian = circadianFactor();
 
@@ -257,10 +387,25 @@ async function tick(): Promise<void> {
   log(resident.name, "read", "读完了，没留下痕迹");
 }
 
-/** 启动自主生活循环（幂等；AGENT_AUTONOMY=off 关闭）。 */
-export function ensureAgentLife(): void {
+/**
+ * 启动本地降级循环（幂等）。OASIS sidecar 健康时必须退出，避免两套
+ * 行为引擎同时驱动居民；sidecar 不可用时再降级，保证信息流仍可演示。
+ */
+export async function ensureAgentLife(): Promise<void> {
   if (process.env.AGENT_AUTONOMY === "off") return;
   if (g.__huzhiLife) return;
+  const oasisUrl = process.env.OASIS_ENGINE_URL?.trim();
+  if (oasisUrl) {
+    try {
+      const response = await fetch(new URL("/health", oasisUrl), {
+        cache: "no-store",
+        signal: AbortSignal.timeout(700),
+      });
+      if (response.ok) return;
+    } catch {
+      // sidecar 不可用，继续启动本地降级行为器
+    }
+  }
   g.__huzhiLife = true;
   const loop = () => {
     void tick().catch(() => {

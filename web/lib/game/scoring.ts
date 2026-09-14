@@ -68,19 +68,23 @@ export function settle(room: Room): Record<string, number> {
     const bRight = b.guess.kind === a.identity;
     if (aRight && !bRight) {
       ea.points += b.guess.bet;
-      eb.points -= b.guess.bet;
+      const loss = insuredLoss(b.guess.bet, b.guess.insured);
+      eb.points -= loss;
       ea.notes.push(`赢下注池 +${b.guess.bet}`);
-      eb.notes.push(`注金被通吃 -${b.guess.bet}`);
+      eb.notes.push(b.guess.insured ? `止损券回收一半注金，本次损失 -${loss}` : `注金被通吃 -${loss}`);
     } else if (bRight && !aRight) {
       eb.points += a.guess.bet;
-      ea.points -= a.guess.bet;
+      const loss = insuredLoss(a.guess.bet, a.guess.insured);
+      ea.points -= loss;
       eb.notes.push(`赢下注池 +${a.guess.bet}`);
-      ea.notes.push(`注金被通吃 -${a.guess.bet}`);
+      ea.notes.push(a.guess.insured ? `止损券回收一半注金，本次损失 -${loss}` : `注金被通吃 -${loss}`);
     } else if (!aRight && !bRight) {
-      ea.points -= a.guess.bet;
-      eb.points -= b.guess.bet;
-      ea.notes.push(`双误判，注金充公 -${a.guess.bet}`);
-      eb.notes.push(`双误判，注金充公 -${b.guess.bet}`);
+      const aLoss = insuredLoss(a.guess.bet, a.guess.insured);
+      const bLoss = insuredLoss(b.guess.bet, b.guess.insured);
+      ea.points -= aLoss;
+      eb.points -= bLoss;
+      ea.notes.push(a.guess.insured ? `双误判，止损券回收一半注金 -${aLoss}` : `双误判，注金充公 -${aLoss}`);
+      eb.notes.push(b.guess.insured ? `双误判，止损券回收一半注金 -${bLoss}` : `双误判，注金充公 -${bLoss}`);
     } else {
       ea.notes.push("双方都猜中，退注");
       eb.notes.push("双方都猜中，退注");
@@ -101,6 +105,10 @@ export function settle(room: Room): Record<string, number> {
   room.reveal = { entries: [ea, eb], report };
   room.phase = "reveal";
   return changes;
+}
+
+function insuredLoss(bet: number, insured?: boolean): number {
+  return insured ? Math.floor(bet / 2) : bet;
 }
 
 function label(i: string): string {

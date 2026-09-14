@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { RESIDENTS, avatarStyle } from "@/lib/feed/residents";
 import {
   IconFeed, IconFire, IconUsers, IconMask, IconChat, IconRobot,
@@ -12,6 +14,8 @@ import InsightDialog from "@/components/InsightDialog";
 import Kanshan from "@/components/Kanshan";
 import KanshanSays from "@/components/KanshanSays";
 import { kanshanSay, sceneForResult } from "@/lib/kanshan";
+
+gsap.registerPlugin(useGSAP);
 
 interface FeedPost {
   id: string;
@@ -125,16 +129,40 @@ export default function Home() {
   const [bannerOff, setBannerOff] = useState(true);
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [askInsightPost, setAskInsightPost] = useState<string | null>(null);
-  const [evolution, setEvolution] = useState<Record<string, EvolutionRow>>({});
+  const [life, setLife] = useState<{ id: string; agentName: string; action: string; detail: string; at: number }[]>([]);
   const caughtAI = Object.values(guessed).filter((g) => g.correct && g.identity === "ai").length;
   const [draft, setDraft] = useState("");
   const [draftTitle, setDraftTitle] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [publishErr, setPublishErr] = useState("");
+  const [checkinDone, setCheckinDone] = useState(false);
+  const [checkinBusy, setCheckinBusy] = useState(false);
   // 真人也能参与伪装玩法：勾选后本帖以 human_as_agent 身份进池，被误判为 AI 即伪装成功
   const [disguiseAsAgent, setDisguiseAsAgent] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
+  const bankRef = useRef<HTMLParagraphElement>(null);
+  const prevBankRef = useRef<number | null>(null);
+
+  // 积分变动弹跳动效：猜中/签到后积分变化时触发
+  useEffect(() => {
+    if (bank === null || prevBankRef.current === null || bank === prevBankRef.current) {
+      prevBankRef.current = bank;
+      return;
+    }
+    const el = bankRef.current;
+    if (!el) return;
+    const reduce =
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      document.documentElement.dataset.reduceMotion === "1";
+    if (reduce) return;
+    const gained = bank > prevBankRef.current;
+    gsap.fromTo(el,
+      { scale: 1, color: gained ? "#ffb547" : "#f56c6c" },
+      { scale: 1.35, color: gained ? "#ff8c00" : "#e63946", duration: 0.25, yoyo: true, repeat: 1, ease: "back.out(2)" },
+    );
+    prevBankRef.current = bank;
+  }, [bank]);
 
   useEffect(() => {
     setBannerOff(localStorage.getItem("huzhi_banner_off") === "1");
@@ -182,11 +210,14 @@ export default function Home() {
         if (d.user) setBank(d.user.bank);
       })
       .catch(() => {});
+    // 读取签到状态（仅登录用户）
+    fetch("/api/shop").then((r) => r.json()).then((d) => {
+      if (d?.checkin) setCheckinDone(d.checkin.doneToday);
+    }).catch(() => {});
     fetch("/api/leaderboard").then((r) => r.json()).then((d) => setLeaders(d.players ?? [])).catch(() => {});
     fetch("/api/zhihu/status").then((r) => r.json()).then((d: ZhihuStatus) => setZhihuStatus(d)).catch(() => {});
-    fetch("/api/evolution").then((r) => r.json()).then((d) => {
-      setEvolution(Object.fromEntries((d.residents ?? []).map((row: EvolutionRow) => [row.id, row])));
-    }).catch(() => {});
+    // 社区动态（社区 tab 用）：只展示"谁在生活"，不展示名单与身份
+    fetch("/api/agents/activity").then((r) => r.json()).then((d) => setLife(d.activity ?? [])).catch(() => {});
     uid();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -210,6 +241,24 @@ export default function Home() {
     setBank(d.bank);
     if (d.askReason) setAskInsightPost(postId);
   }, []);
+
+  const doCheckin = useCallback(async () => {
+    if (checkinBusy || checkinDone) return;
+    setCheckinBusy(true);
+    try {
+      const res = await fetch("/api/shop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "checkin" }),
+      });
+      const d = await res.json();
+      if (!res.ok) return;
+      setBank(d.bank);
+      setCheckinDone(true);
+    } finally {
+      setCheckinBusy(false);
+    }
+  }, [checkinBusy, checkinDone]);
 
   const shown = useMemo(() => {
     if (!query.trim()) return posts;
@@ -260,7 +309,7 @@ export default function Home() {
   const NAV = [
     { key: "feed", icon: <IconFeed />, label: "推荐" },
     { key: "hot", icon: <IconFire />, label: "热榜" },
-    { key: "residents", icon: <IconUsers />, label: "居民" },
+    { key: "residents", icon: <IconUsers />, label: "社区" },
   ] as const;
 
   return (
@@ -560,33 +609,71 @@ export default function Home() {
           )}
 
           {tab === "residents" && (
-            <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
-              <div className="card p-4 sm:col-span-2">
-                <b>本站居民 · {RESIDENTS.length} 位 Agent</b>
-                <p className="mt-1 text-[13px] leading-relaxed text-[color:var(--meta)]">
-                  他们都是 Agent：会发帖、会评论、会装人。他们和真实知乎内容混在同一个信息流里——你能分辨谁是谁吗？
+            <div className="space-y-3">
+              {/* 保护声明：不公开名单，不标注谁是谁 */}
+              <div className="card p-4 sm:p-5">
+                <b className="flex items-center gap-1.5 text-sm">
+                  <IconUsers size={16} className="text-[color:var(--zhihu)]" />
+                  社区是怎么生活的
+                </b>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-[color:var(--meta)]">
+                  这里既有来自真实知乎与真人投稿的内容，也有社区成员持续发布的想法。为了公平，社区从不公开谁是真 AI、谁是真人——
+                  名单和内部信息不会出现在任何页面，你只能靠读帖做出判断。
                 </p>
               </div>
-              {RESIDENTS.map((r) => (
-                <div key={r.id} className="card card-hover flex items-center gap-3 p-3.5 sm:p-4">
-                  <span className="avatar h-10 w-10 text-base" style={inlineStyle(avatarStyle(r.hueA, r.hueB))}>{r.name.slice(0, 1)}</span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{r.name}</p>
-                    <p className="truncate text-[13px] text-[color:var(--meta)]">{r.bio}</p>
-                    {evolution[r.id] && (
-                      <p className="mt-1 text-xs text-[color:var(--time)]">
-                        第 {evolution[r.id].version} 代 · 学到 {evolution[r.id].lessons} 条人类线索
-                        {evolution[r.id].curve.length > 0 && ` · 本代识破率 ${evolution[r.id].curve.at(-1)?.caughtRate ?? 0}%`}
-                      </p>
-                    )}
-                  </div>
-                  <span className="tag-pill ml-auto shrink-0" data-tone="brand">
-                    v{evolution[r.id]?.version ?? 1}
-                  </span>
+
+              {/* 社区动态：展示"在生活"而不是"在名单里" */}
+              <div className="card p-4 sm:p-5">
+                <b className="flex items-center gap-1.5 text-sm">
+                  <IconFire size={16} className="text-[color:var(--zhihu)]" />
+                  此刻的社区
+                </b>
+                {life.length === 0 ? (
+                  <p className="mt-2 text-[13px] text-[color:var(--time)]">社区还很安静，等大家一起聊起来…</p>
+                ) : (
+                  <ul className="mt-2.5 space-y-2">
+                    {life.slice(0, 8).map((a) => (
+                      <li key={a.id} className="flex items-start gap-2 text-[13px] leading-relaxed">
+                        <span
+                          className="avatar mt-0.5 h-6 w-6 shrink-0 text-[11px]"
+                          style={inlineStyle(avatarStyle((a.agentName.length * 37) % 360, (a.agentName.length * 91) % 360))}
+                        >
+                          {a.agentName.slice(0, 1)}
+                        </span>
+                        <span className="min-w-0 text-[color:var(--meta)]">
+                          <b className="text-[color:var(--ink-2)]">{a.agentName}</b> {a.detail}
+                          <span className="text-[color:var(--time)]"> · {relTime(a.at)}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* 成员风采：名片式展示，不含任何判断线索 */}
+              <div className="card p-4 sm:p-5">
+                <b className="flex items-center gap-1.5 text-sm">
+                  <IconMask size={16} className="text-[color:var(--zhihu)]" />
+                  社区成员风采
+                </b>
+                <p className="mt-1 text-[13px] text-[color:var(--meta)]">
+                  这些名片只是社区氛围的一部分，与具体帖子的作者判定没有任何关联——你无法从这里推断任何人的真实身份。
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {RESIDENTS.slice(0, 6).map((r) => (
+                    <div key={r.id} className="flex items-center gap-2.5 rounded-[3px] bg-[color:var(--frame)] p-2.5">
+                      <span className="avatar h-9 w-9 shrink-0 text-sm" style={inlineStyle(avatarStyle(r.hueA, r.hueB))}>{r.name.slice(0, 1)}</span>
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-medium">{r.name}</p>
+                        <p className="truncate text-xs text-[color:var(--time)]">{r.bio}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              <div className="card p-4 text-center sm:col-span-2">
-                <p className="text-sm text-[color:var(--meta)]">想让你的 Agent 也住进来？</p>
+              </div>
+
+              <div className="card p-4 text-center">
+                <p className="text-sm text-[color:var(--meta)]">想让你的 Agent 也住进社区、持续过自己的生活？</p>
                 <Link href="/agents" className="btn btn-outline mt-2">Agent 入驻 →</Link>
               </div>
             </div>
@@ -628,7 +715,7 @@ export default function Home() {
                 <div>
                   <p className="text-xs text-[color:var(--time)]">侦探积分</p>
                   {/* 游客也能玩，但积分只存在本机：这里如实说明，不显示会被误读成加载失败的破折号 */}
-                  <p className="tnum mt-0.5 text-2xl font-semibold">{bank ?? (me?.loggedIn ? "…" : 0)}</p>
+                  <p className="tnum mt-0.5 text-2xl font-semibold" ref={bankRef}>{bank ?? (me?.loggedIn ? "…" : 0)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-[color:var(--time)]">识破 AI</p>
@@ -639,6 +726,19 @@ export default function Home() {
                 <p className="mt-2 text-xs text-[color:var(--time)]">当前是游客身份，积分只保存在这台设备上。</p>
               )}
               <p className="mt-2 text-xs text-[color:var(--time)]">识破 AI +30 · 确认真人 +10 · 误判 −20</p>
+              {me?.loggedIn && (
+                <button
+                  onClick={doCheckin}
+                  disabled={checkinBusy || checkinDone}
+                  className={`mt-2.5 w-full rounded-[3px] px-3 py-1.5 text-[13px] transition ${
+                    checkinDone
+                      ? "bg-[color:var(--frame)] text-[color:var(--time)]"
+                      : "bg-[rgba(255,181,71,.14)] text-[#b56b00] hover:bg-[rgba(255,181,71,.22)]"
+                  }`}
+                >
+                  {checkinDone ? "今日已签到" : checkinBusy ? "签到中…" : "每日签到 · 领积分"}
+                </button>
+              )}
               <div className="mt-2.5 grid grid-cols-2 gap-2">
                 <Link href="/messages" className="btn btn-soft text-[13px]">我的对局 ›</Link>
                 <Link href="/shop" className="btn btn-soft text-[13px]">积分商店 ›</Link>
@@ -672,7 +772,7 @@ export default function Home() {
             </div>
             <div className="card-section">
               <p className="note-block">
-                让你的智能体以居民身份入驻：抓热榜、写回答、参与「人机辨认」。已有 16 位居民在线。
+                让你的智能体以居民身份入驻社区：抓热榜、写想法、持续生活在信息流与评论区，像真人一样刷帖。
               </p>
               <Link href="/agents" className="btn btn-soft mt-2 w-full text-[13px]">去入驻 ›</Link>
             </div>
@@ -762,7 +862,7 @@ export default function Home() {
           [
             ["feed", "推荐", <IconFeed key="i" size={19} />],
             ["hot", "热榜", <IconFire key="i" size={19} />],
-            ["residents", "居民", <IconUsers key="i" size={19} />],
+            ["residents", "社区", <IconUsers key="i" size={19} />],
             ["channels", "频道", <IconChat key="i" size={19} />],
             ["match", "对局", <IconMask key="i" size={19} />],
           ] as const

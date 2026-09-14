@@ -298,7 +298,79 @@ zhihu/
   - [x] **实跑结果：8 过 / 0 败**，额度恰各消耗 1（hot_list 47→46、zhihu_search 4890→4889、global_search 4999→4998、question_answers 94→93、creator 97→96、zhida_openai 4999→4998）；`tsc --noEmit` 零错误、生产构建通过（路由表完整）
   - [x] **开源底座状态（诚实）**：Supabase+Upstash 仍为「定稿未接入」——`web/.env.local` 仅有 ZHIHU_ACCESS_SECRET，无 Supabase/Upstash 凭证，DDL（web/db/schema.sql）与八步迁移方案就绪，待用户开项目；本轮不擅自自建设施
   - [x] **GitHub 托管**：推送前泄漏扫描（真实密钥值不在任何 219 个跟踪文件、.env.example 全占位、.data/ 与 .env.local 未跟踪）→ `gh repo create` 建仓推送 main；新增 README.md（项目门面：玩法/六 API 表/检验流程/快速开始/文档索引）
-- [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目）
+- [x] **本轮（36）· 重读全项目文档后纠正 Agent 底座选型（仅研究，不开发）**
+  - [x] 重新读取 README、AGENTS、game-design v3/v2、contest-alignment、architecture 及既有 OSS/审计报告；确认核心需求是“社交环境+居民+动作+推荐+调度+外部 Agent+身份博弈”，不是普通聊天 Agent
+  - [x] 承认并废止第 35 轮自建 BYOA Gateway 方向：它违反用户“基于稳定项目、不自己创建架构”的明确要求；旧文档仅保留为需求分析
+  - [x] **唯一 Agent 社交底座定稿为 CAMEL-AI OASIS**（Apache-2.0、活跃维护）：直接使用 Platform、SocialAgent、UserInfo/profile、memory、23 类 Actions（含 DO_NOTHING）、interest/hot Recsys、Simulation Engine、LLMAction/ManualAction
+  - [x] 稳定性口径：锁定 PyPI `camel-oasis==0.2.5`（Python >=3.10,<3.12）及兼容 CAMEL lockfile，不跟随 main；诚实定位为黑客松/研究演示底座，不宣称已验证真人生产并发
+  - [x] OpenClaw/Hermes 明确定位为外部居民客户端而非平台底座：保留自身 SOUL/MEMORY/skills/cron，通过现有 Skill/API 转成 OASIS ManualAction；真人同样使用 ManualAction
+  - [x] 乎知只保留作品独有扩展：知乎内容入口、真人/Agent 混合、`actor_kind × performance_task` 身份密封、判断质押/积分和揭晓；不自研 Agent 生命周期、推荐、社交图、行为循环、记忆接口、并发调度或模型路由
+  - [x] 黑客松展示限定一个 OASIS 服务、2–4 个同时激活内置 Agent、低 activation probability、外部 Agent 自担推理、SQLite 演示、mock 降级；避免按官方 100 Agent 全激活示例产生高 token 成本
+  - [x] 最终报告 `docs/research/oasis-foundation-decision-v36.md`，包含逐文档需求核对、选型排除、OASIS 模块映射、外部 Agent 接入、学习/惩罚、资源控制和 3 分钟答辩流程
+- [x] **本轮（37）· OASIS 定稿清理 + 趣味视觉开发起步**
+  - [x] 删除两份已被 OASIS 定稿取代的候选/自建 Gateway 报告及看板冲突口径；底层唯一有效文档为 `docs/research/oasis-foundation-decision-v36.md`
+  - [x] GitHub/Firecrawl/Exa 复核：OASIS `ManualAction` 可承接外部 Agent；社交推理界面应突出秘密角色、阶段与清晰揭晓；积分优先服务判断、下注和复盘，不做复杂养成
+  - [x] 积分商店新增「身份星图」：Three.js 低功耗 72 点场景 + GSAP React 自动清理入场 + 刘看山裁判形象，支持 reduced-motion、DPR 上限与离屏暂停
+  - [x] 新增依赖只采用官方稳定项目 `gsap`、`@gsap/react`、`three`；`tsc --noEmit` 与 `git diff --check` 通过
+  - [x] **修复积分经济漏洞**：商店购买旧实现增加库存却 `addBank(..., 0)` 不扣积分；现按商品价格真实扣款，并在商店显式展示已实现的 10–20 分单项取证消费路径
+  - [x] **OASIS 官方包真实落地验证**：新增 `agent-engine/` 的 Python 3.11 + `uv.lock` + fail-fast verifier；首次发现 MCP 2.x 兼容故障后锁定 `mcp==1.30.0`，最终验证 `camel-oasis 0.2.5 / camel-ai 0.2.78 / ManualAction / 5 个必需动作` 全部通过
+  - [x] **OASIS→乎知薄适配层**：`agent-engine/huzhi_bridge.py` 只把官方 ManualAction 映射到现有 HTTP API，不自建循环/记忆/推荐；4 项契约测试通过，含正式 `DO_NOTHING` 静默动作
+  - [x] 补齐 `LIKE_POST` 的真实产品端点 `/api/agents/like`（Key 鉴权、每 Agent 每帖一票、记忆记录）；端到端实跑“真人注册→Agent 入驻→读流→Bearer 点赞”，目标帖票数 1→2
+  - [x] 浏览器验收积分商店：WebGL 上下文存在、身份星图标题渲染、横向溢出 0、控制台错误 0；OpenAPI 升级 2.1 并与 Bearer 鉴权和新点赞端点同步
+  - [x] 积分扣款运行时断言：验收账号购买双倍卡返回 200，余额 1000→850、库存 0→1、接口返回余额与再次 GET 一致，确认修复不是静态假象
+  - [x] **OASIS 社交环境实跑**：按官方 Reddit cookbook 启动 2 居民 SQLite 世界；`model=None` 会意外索要 OpenAI Key，改用 CAMEL 官方 StubModel 后零 LLM 跑通 1 帖/1 评论/1 点赞/2 静默/7 traces
+  - [x] **积分透明账单**：GameStore 持久记录 reason/delta/balance/at，贯穿签到、猜帖、识破反馈、Agent 判断、取证、代笔现场、1v1 与购买；商店新增账单 UI
+  - [x] 独立 3011 端口运行验收：购买双倍卡余额 250→100、账单首条“购买：双倍卡 / −150 / 余 100”，页面 Canvas=1、横向溢出=0；验收后正常关闭临时 dev server
+- [x] **本轮（38）· OASIS 叙事落地 /about + 每日签到 + 文档清理（用户指令：以 OASIS 定稿为底座，删无关内容，推进产品使用）**
+  - [x] **三线调研并行**：Firecrawl 搜 AI 社交推理游戏与积分经济设计（AI-Native Games 综述、6 类 gamification 奖励）、GitHub 搜社交模拟开源项目（oceaagent/AgentBook 等）、WebSearch 搜 AI 平台 UI 设计（CollabAgents 伦敦设计奖金奖、RPG 式 Agent 可视化）
+  - [x] **新增 AgentWorld 组件**（`components/AgentWorld.tsx`）：Three.js 球面粒子 + 连线，蓝=真人/金=Agent/紫=伪装中，低功耗（DPR≤1.5、IntersectionObserver 暂停、reduced-motion 降级），展示"POWERED BY CAMEL-AI OASIS"叙事
+  - [x] **重写 /about 页**：首屏品牌横幅 + 刘看山引导 + AgentWorld 可视化 + 三步核心循环 + 四类身份卡（human/agent/human_as_agent/agent_as_human，颜色编码）+ 天择引擎 & 对称博弈双栏 + Agent 入驻 + 刘看山收尾；GSAP `data-fade` 入场 stagger
+  - [x] **每日签到**（`lib/social.ts` + `/api/shop` action=checkin）：基础 50 分/天，连续 +10/天封顶 90 分，持久化到 `checkins` 集合，防重复签到；商店页签到卡片 + GSAP 积分弹跳反馈（scale 1→1.6 yoyo）
+  - [x] **首页积分动效 + 签到快捷入口**：`page.tsx` 侧栏积分数字挂 `bankRef`，猜身份/签到后积分变动触发 GSAP 弹跳（得分金色/失分红色，scale 1↔1.35）；侦探中心卡片新增「每日签到 · 领积分」按钮（登录态显示），一键签到
+  - [x] **文档清理**：删除 4 份已过时/被取代的研究文档——`tech-research.md`（旧名"图灵盲盒"、错误技术栈 Next.js16/shadcn/Jotai）、`gameplay-research.md`（旧名）、`full-interface-audit-v25.md`（被 v26 取代）、`zhihu-design-extraction.md`（被 v2 取代）
+  - [x] 验证：`tsc --noEmit` 零错误；浏览器验收 /about（9 项全过）；/shop 签到实测 1000→1050；首页签到按钮态切换正常、猜身份流程正常、横向溢出 0；未执行生产构建
+- [x] **本轮（39）· 后端全链路跑通验收 + 修复 dev/build 冲突（用户指令"完善后端能够跑起来"）**
+  - [x] **全接口实跑**（dev 3000 端口）：15 个页面路由全部 200；写闭环注册→签到(+50)→商店→发真人帖→防自猜拦截(400 正确)→猜身份(误判 -20)→建房→带 pid 取状态→发言→2 轮规则保护(400 正确)→揭晓→搜索(编码后)→线索卡→匹配队列→kindred→SSE(hello/update/ping)；tsc 零错误
+  - [x] **发现并修复真实卡点：dev 与 build 共用 `.next` 互相冲突**——运行时 `next build` 会覆盖 `.next` 使正在运行的 dev server 变 500；`rm -rf .next` 后 `next start` 报"Could not find a production build"。正确操作顺序入 AGENTS.md 运维规范
+  - [x] **生产模式（next start -p 3000）验证通过**：页面+接口全部 200（kindred 401=需登录合理）；写闭环注册→签到→发帖→**`.data/` JSON 文件库落盘正常**（users/user_posts 时间戳实时更新）
+  - [x] 当前 3000 端口运行的是**生产模式**（next start）；切回 dev：`rm -rf .next && npm run dev`
+- [x] **本轮（40）· OASIS sidecar 真连接 + 身份可视化纠偏 + 运行状态透明化**
+  - [x] GitHub Connector 因未认证不可用，改由 Firecrawl Developer Index 获取 OASIS 官方 Reddit cookbook，并与锁定包源码交叉核对 `env.reset → env.step(ManualAction) → env.close`
+  - [x] 新增 `agent-engine/sidecar.py`：单进程持有 2 居民 OASIS 世界，默认仅监听 127.0.0.1；`/manual` 先写 OASIS trace，只有显式配置 HUZHI_BASE_URL/KEY 才转发产品 API
+  - [x] sidecar 实跑：health=OASIS 0.2.5/2 agents/forwarding false；CREATE_POST trace 3、DO_NOTHING trace 4；未配置 Key 时没有伪造线上写入
+  - [x] 新增 `/api/agents/runtime` 真实健康探测：sidecar 在时返回 connected=true，关闭后 1.2s 内返回 local-fallback；页面不再把“依赖已安装”误写成“线上已驱动”
+  - [x] 修复 AgentWorld 身份泄漏式叙事：节点全部使用同类匿名蓝青编码，删除“蓝=真人/金=Agent/紫=伪装”假图例；确定性 PRNG 保证同配置截图稳定
+  - [x] `/about` 浏览器断言：sidecar 已连接、OASIS VERIFIED、匿名节点存在、泄漏图例不存在、Canvas=1、横向溢出=0
+  - [x] 修复 sidecar Ctrl-C 残留 OASIS pending task：显式 env.close、停止 loop、回收线程与临时 SQLite；重复启动后退出码 0、无 pending task 警告
+  - [x] **OASIS→乎知完整写链路实跑**：forwarding=true 后 CREATE_POST 返回 `ap_` ID、CREATE_COMMENT 返回 `ac_` ID、LIKE_POST 返回最新票数；OASIS trace 依次增长，产品详情可读到同一正文与评论
+  - [x] 首次转发暴露严格参数差异：乎知 `topic` 误传 OASIS `create_post(content)` 导致拒绝；改为官方参数白名单与产品元数据分流，并增加“正文首行派生标题”契约测试
+  - [x] 修复 Agent 帖点赞刷新回滚：`votePost` 旧逻辑只改 feed 内存，接口返回 668 后详情仍 667；现持久化 `votes + votedBy` 到 agent_posts，复测 returned=125/readback=125/重复点赞仍 125
+  - [x] **主备运行时互斥实测**：`ensureAgentLife` 优先探测 OASIS sidecar；sidecar 在线时 feed 请求后 `localLoopStarted=false`，不会与旧居民循环双重驱动；关闭 sidecar 后同一进程自动降级且 `localLoopStarted=true`。本地循环只作为演示兜底，不再作为架构主路径
+  - [x] **移除 sidecar 居民数量硬编码**：默认 2 人仅为低资源演示；`OASIS_PROFILE_PATH` 可载入任意人数 profile，运行时按 OASIS AgentGraph 实际人数校验。三居民夹具实测 health agents=3、第三位 `DO_NOTHING` 成功、越界编号明确拒绝
+  - [x] 两轮桥接验收 Agent 均已由注册者吊销；sidecar 与临时 dev server 均正常关闭，不保留运行进程
+- [x] **本轮（41）· OASIS 人数去硬编码 + 积分进入 1v1 核心循环**
+  - [x] sidecar 由 `OASIS_PROFILE_PATH` 载入居民，按 AgentGraph 实际人数运行，不再写死两位；默认两人仅为黑客松低资源样本
+  - [x] 三居民 OASIS 实跑：health agents=3、agentIndex=2 的 DO_NOTHING 成功写入 trace、agentIndex=3 越界明确拒绝，证明不是 2/16 人架构上限
+  - [x] 商店新增「止损券」120 分：购买后可装填，下一场 1v1 有效锁注自动携带；误判时只损失一半注金，基础猜身份分与伪装分照常结算
+  - [x] 止损券贯通规则文档、持久库存/效果、锁注、确定性结算、客户端状态和对局提示；不会改变密封身份或替玩家作答
+  - [x] 真实接口验收：新账号 1000→购买后 880，装填库存 1→0；故意误判押 200，战报显示止损后仅扣 100 注金，最终账单与返回余额一致
+  - [x] `npm run typecheck` 通过；临时 OASIS 与 Next dev 均使用独立端口验证，不触碰 3000 生产进程
+- [x] **本轮（42）· OASIS 原生自主决策通道（不再用自研概率冒充 Agent）**
+  - [x] sidecar 新增官方 `LLMAction` 的 `/auto` 通道：由 SocialAgent 观察 OASIS 推荐环境并调用官方 action tools；`/manual` 继续服务 OpenClaw/Hermes/真人动作
+  - [x] 模型配置统一使用 OpenAI-compatible 三变量（API key/base URL/model name）；任一缺失时 autonomy=false 且 `/auto` 返回 409，不把 StubModel 假装成自主 Agent
+  - [x] 单次唤醒、默认 320 max tokens、一次只激活一位居民，保持黑客松资源可控；模型选择出的动作从 OASIS trace 读取并返回，不由乎知二次猜测
+  - [x] 本地确定性 OpenAI-compatible fixture 实跑：请求确实携带 OASIS `do_nothing` tool，Agent 自主选中静默，`tracesAdded=1`；health 显示 autonomy=true
+  - [x] 发现并修复 SOCKS 环境兼容：CAMEL/OpenAI client 会读取系统代理，锁定小型 `socksio==1.0.0` 后，在当前代理环境下无需取消代理即可启动并完成 LLMAction
+  - [x] `/api/agents/runtime` 透传实时居民数与 autonomy 状态；`agent-engine/.env.example` 补齐全部配置，不写真实凭证
+  - [x] **LLMAction 自动镜像闭环**：从 OASIS 新增 trace 提取真实已执行动作，复用同一 HuzhiBridge 同步产品；镜像失败单独返回 forwardError，不回滚或伪造 OASIS 行为。实跑 autonomous CREATE_POST → OASIS post_id=1 → 乎知 `ap_` 帖，产品读取到相同标题/正文；验收 Agent 随后已吊销
+- [x] **本轮（43）· 社区信息保密 + 外部 Agent 产品侧持续生活 + 入驻人数确认无硬限（用户指令）**
+  - [x] **社区信息保密（修复玩法破洞）**：原「居民」tab 公开「本站居民 · 16 位 Agent」完整名单 + 进化代际/识破率=把 AI 名单白送玩家。改为「社区」视图：守护声明 + 此刻的社区动态流（/api/agents/activity）+ 成员名片（与帖子判定无关联）；移除前端 evolution 调用；tab 名「居民」→「社区」（桌面导航+移动底栏）；侧栏写死的「已有 16 位居民在线」改动态文案
+  - [x] **外部 Agent 产品侧持续生活**（与 sidecar 的 OASIS LLMAction 通道互补，本层是"无 sidecar/未配模型时"的兜底与补充）：registry 新增 `autonomousAgentPost`（服务端写入不占外部 API 限流）；autonomous.ts 新增 `externalTick`——入驻 Agent 与内置居民混合调度（25% 概率进外部通道），按作息节律自动发生活帖（模板+humanize，45 分钟冷却防刷屏）/评论/点赞/路过
+  - [x] **入驻人数无硬限制确认**：registry `registerAgent` 无人数上限（仅 6 帖/h Key 限流防灌水）；侧栏/居民页不再写死 16
+  - [x] **外部 Agent 对接文档同步**：llms.txt 新增「持续生活（无需轮询）」说明；入驻页新增「持续生活（无需你自己轮询）」提示卡；`docs/game-design.md` 新增「社区对玩家保密」与「外部 Agent 持续生活」两条设计
+  - [x] **刘看山动画确认**：三套 320×320 GIF（wave/idle/stroll）齐全且在页面实际使用（wave=登录、idle=详情/关于、stroll=加载/匹配），规范文档与代码一致，无需修复
+  - [x] 实测：注册外部 Agent「落地抖三抖」→ 主动发帖 200 → 立即进 feed；autonomous 循环按夜间节律运行不刷屏；`tsc --noEmit` 零错误
+- [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
 - [ ] 直答 Agent 接入运行时（100 次/天，做官方 AI 池内容）
 - [ ] 道具商店（伪装道具/侦探工具/反套路）接入对局

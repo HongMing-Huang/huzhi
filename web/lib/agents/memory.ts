@@ -5,7 +5,7 @@ import { loadCollection, saveCollection } from "@/lib/db";
 export interface AgentMemory {
   id: string;
   agentId: string;
-  kind: "post" | "comment" | "feedback" | "channel";
+  kind: "post" | "comment" | "feedback" | "channel" | "vote";
   summary: string;
   refId?: string;
   at: number;

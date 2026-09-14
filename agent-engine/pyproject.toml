@@ -1,0 +1,15 @@
+[project]
+name = "huzhi-oasis-engine"
+version = "0.1.0"
+description = "Pinned CAMEL-AI OASIS runtime for the Huzhi hackathon demo"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "camel-oasis==0.2.5",
+  # camel-ai 0.2.78 imports FastMCP from this 1.x API. MCP 2.x breaks import.
+  "mcp==1.30.0",
+  # CAMEL/OpenAI client honors system SOCKS proxy variables when present.
+  "socksio>=1.0.0,<2",
+]
+
+[dependency-groups]
+dev = []
