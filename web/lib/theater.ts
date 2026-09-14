@@ -138,7 +138,8 @@ function forgeParagraph(target: string, seed: string): string {
 // 开局 / 结算
 // ---------------------------------------------------------------------------
 
-const PARAGRAPHS_PER_SCENE = 8;
+// 三段形成足够清晰的同文对照，避免长列表让判断变成耐力测试。
+const PARAGRAPHS_PER_SCENE = 3;
 
 export interface StartResult {
   scene: ClientScene | null;
@@ -155,7 +156,7 @@ export async function startScene(kind: ContentKind, workId: string, salt = ""): 
   const detail: WorkDetail = r.detail;
 
   const all = splitParagraphs(detail.content).filter((p) => p.length >= 12);
-  if (all.length < 5) {
+  if (all.length < PARAGRAPHS_PER_SCENE) {
     return { scene: null, degraded: true, reason: "这篇正文太短，不适合开局" };
   }
 
@@ -167,8 +168,8 @@ export async function startScene(kind: ContentKind, workId: string, salt = ""): 
   );
   const window = all.slice(start, start + PARAGRAPHS_PER_SCENE);
 
-  // 伪造位置避开首尾（首段承上、尾段启下，替换会破坏可读性）
-  const fakeIndex = 1 + (hash(seed + "f") % Math.max(1, window.length - 2));
+  // 三个位置等概率出现，避免玩家记住固定答案位置。
+  const fakeIndex = hash(seed + "f") % window.length;
   const paragraphs = [...window];
   paragraphs[fakeIndex] = forgeParagraph(window[fakeIndex], seed + "|forge");
 

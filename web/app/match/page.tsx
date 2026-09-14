@@ -127,7 +127,7 @@ export default function Match() {
 
   return (
     <>
-      <AppHeader title="灵魂对局" right={<Link href="/messages" className="btn btn-plain">对局记录</Link>} />
+      <AppHeader title="灵魂对局" />
       <PageFrame>
         <section className="page-lead pt-1">
           <p className="page-kicker">1v1 无痕身份博弈</p>
