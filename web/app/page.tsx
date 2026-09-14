@@ -128,6 +128,7 @@ export default function Home() {
   const [leaders, setLeaders] = useState<LeaderRow[]>([]);
   const [zhihuStatus, setZhihuStatus] = useState<ZhihuStatus | null>(null);
   const [aiStatus, setAiStatus] = useState<{ configured: boolean; host: string | null; model: string; paths: string[] } | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [bannerOff, setBannerOff] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -905,6 +906,30 @@ export default function Home() {
       {askInsightPost && (
         <InsightDialog postId={askInsightPost} onClose={() => setAskInsightPost(null)} onBankChange={setBank} />
       )}
+
+      {/* 移动端：问刘看山浮层（桌面已在侧栏常驻） */}
+      <div className="lg:hidden">
+        <button
+          onClick={() => setChatOpen((v) => !v)}
+          aria-label="问刘看山"
+          aria-expanded={chatOpen}
+          className="fixed bottom-[78px] right-4 z-40 rounded-full bg-white shadow-[0_4px_16px_rgba(0,0,0,.14)] transition-transform active:scale-95"
+        >
+          <Kanshan variant="wave" size={64} eager className="!h-12 !w-12 rounded-full" />
+        </button>
+        {chatOpen && (
+          <>
+            <button aria-hidden className="fixed inset-0 z-40 bg-black/20" onClick={() => setChatOpen(false)} />
+            <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-xl bg-white px-3 pt-3 shadow-[0_-8px_30px_rgba(0,0,0,.12)]"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 64px + 10px)" }}>
+              <KanshanChat />
+              <button onClick={() => setChatOpen(false)} className="mt-2 w-full text-center text-[13px] text-[color:var(--time)]">
+                收起
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 
@@ -1045,7 +1070,8 @@ export default function Home() {
                 {result.doubled && <b className="text-[color:var(--gold)]">×2</b>}
                 {(result.contrarianBonus ?? 0) > 0 && <b className="text-[color:var(--gold)]">逆风 +{result.contrarianBonus}</b>}
                 {(result.timingBonus ?? 0) > 0 && <b className="text-[color:var(--gold)]">先手 +{result.timingBonus}</b>}
-                <span className="opacity-70">· {result.truth ?? (result.identity === "ai" ? "AI" : "真人")}</span>
+                <span className="identity-dot" data-kind={kindOf(result)} />
+                <span className="opacity-80">· {result.truth ?? (result.identity === "ai" ? "AI" : "真人")}</span>
                 {result.disguised && <b className="text-[color:var(--hot)]">伪装</b>}
                 {result.evoVersion && <span className="opacity-70">v{result.evoVersion}</span>}
               </span>
@@ -1091,6 +1117,12 @@ export default function Home() {
       </article>
     );
   }
+}
+
+/** 身份徽标分类：四类身份 → 徽标色（揭晓瞬间的状态可见性） */
+function kindOf(r: GuessResult): "human" | "agent" | "disguised" {
+  if (r.disguised) return "disguised";
+  return r.identity === "ai" ? "agent" : "human";
 }
 
 /** 知乎式计数缩写：10000 → 1.2 万 */

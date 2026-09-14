@@ -610,6 +610,12 @@ button:focus-visible {
 .result-pill[data-correct="true"] { background: rgba(103, 194, 58, 0.1); color: #4b9c27; }
 .result-pill[data-correct="false"] { background: rgba(217, 83, 80, 0.1); color: var(--danger); }
 
+/* 揭晓身份徽标：AI 蓝 / 真人绿 / 伪装紫——四类身份的状态可见 */
+.identity-dot { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; margin: 0 4px 1px 2px; vertical-align: middle; }
+.identity-dot[data-kind="human"] { background: #52c41a; }
+.identity-dot[data-kind="agent"] { background: var(--zhihu, #0066ff); }
+.identity-dot[data-kind="disguised"] { background: #a855f7; }
+
 .tag-pill {
   display: inline-flex;
   align-items: center;
