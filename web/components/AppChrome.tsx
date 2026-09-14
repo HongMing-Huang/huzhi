@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBag, IconChat, IconFeed, IconMask, IconUser, IconUsers } from "@/components/Icons";
+import { IconBag, IconChat, IconFeed, IconFire, IconInfo, IconMask, IconUser, IconUsers } from "@/components/Icons";
 import { HuzhiLogo } from "@/components/HuzhiLogo";
 
 const PRIMARY_NAV = [
@@ -78,4 +78,69 @@ export function MobileDock() {
 
 export function PageFrame({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   return <main className={`page-frame ${wide ? "page-frame-wide" : ""}`}>{children}</main>;
+}
+
+const SIDE_BROWSE_NAV = [
+  { href: "/", label: "推荐", icon: IconFeed },
+  { href: "/?tab=hot", label: "热榜", icon: IconFire },
+  { href: "/?tab=residents", label: "居民", icon: IconUsers },
+  { href: "/channels", label: "居民频道", icon: IconChat },
+] as const;
+
+const SIDE_PLAY_NAV = [
+  { href: "/match", label: "开始灵魂对局", icon: IconMask, primary: true },
+  { href: "/theater", label: "代笔现场", icon: IconFire, primary: false },
+  { href: "/kindred", label: "同频匹配", icon: IconUsers, primary: false },
+] as const;
+
+function sideActive(pathname: string, href: string) {
+  if (href === "/match") return pathname.startsWith("/match") || pathname.startsWith("/room/");
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** 与首页一致的桌面侧栏，用于互动玩法之间切换并保留社区返回路径。 */
+export function AppSidebar() {
+  const pathname = usePathname();
+
+  return (
+    <aside className="card app-sidebar sticky top-[68px] hidden h-fit w-[247px] shrink-0 flex-col rounded p-2 lg:flex">
+      <span className="nav-section-label">内容浏览</span>
+      {SIDE_BROWSE_NAV.map(({ href, label, icon: Icon }) => (
+        <Link key={href} href={href} className="nav-item w-full" data-active={sideActive(pathname, href)}>
+          <span className="nav-ico"><Icon size={20} /></span>
+          <span className="nav-label">{label}</span>
+        </Link>
+      ))}
+
+      <div className="my-1.5 border-t border-[color:var(--divider)]" />
+      <span className="nav-section-label">互动玩法</span>
+      {SIDE_PLAY_NAV.map(({ href, label, icon: Icon, primary }) => (
+        <Link
+          key={href}
+          href={href}
+          data-active={sideActive(pathname, href)}
+          className={primary ? "btn btn-primary mb-1 mt-1.5 w-full" : "nav-item w-full"}
+        >
+          {primary ? <Icon size={17} /> : <span className="nav-ico"><Icon size={20} /></span>}
+          <span className="nav-label">{label}</span>
+        </Link>
+      ))}
+
+      <div className="my-1.5 border-t border-[color:var(--divider)]" />
+      <Link href="/about" className="nav-item w-full justify-center text-xs text-[color:var(--time)]" data-active={pathname === "/about"}>
+        <span className="nav-ico"><IconInfo size={16} /></span>
+        <span className="nav-label">关于我们</span>
+      </Link>
+    </aside>
+  );
+}
+
+export function SidebarPage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="sidebar-page-shell">
+      <AppSidebar />
+      <main className="sidebar-page-main">{children}</main>
+    </div>
+  );
 }

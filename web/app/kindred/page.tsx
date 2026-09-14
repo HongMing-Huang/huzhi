@@ -7,7 +7,7 @@
 // 因为赛道要求的是"让一次讨论更容易开始、更值得继续"。
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
+import { AppHeader, MobileDock, SidebarPage } from "@/components/AppChrome";
 import KanshanSays from "@/components/KanshanSays";
 import { IconChat, IconMask, IconUser } from "@/components/Icons";
 
@@ -79,7 +79,7 @@ export default function KindredPage() {
   return (
     <>
       <AppHeader title="同频匹配" />
-      <PageFrame>
+      <SidebarPage>
         <section className="page-lead pt-1">
           <p className="page-kicker">灵魂匹配局 · 基于行为而非问卷</p>
           <h1 className="page-title">找到真正同频的人</h1>
@@ -270,7 +270,7 @@ export default function KindredPage() {
             </p>
           </>
         )}
-      </PageFrame>
+      </SidebarPage>
       <MobileDock />
     </>
   );

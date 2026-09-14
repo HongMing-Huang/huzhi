@@ -123,7 +123,7 @@ export default function Home() {
   const [leaders, setLeaders] = useState<LeaderRow[]>([]);
   const [zhihuStatus, setZhihuStatus] = useState<ZhihuStatus | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [bannerOff, setBannerOff] = useState(true);
+  const [bannerOff, setBannerOff] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [askInsightPost, setAskInsightPost] = useState<string | null>(null);
   const [evolution, setEvolution] = useState<Record<string, EvolutionRow>>({});
@@ -138,6 +138,8 @@ export default function Home() {
   const loadingRef = useRef(false);
 
   useEffect(() => {
+    const savedTab = new URLSearchParams(window.location.search).get("tab");
+    if (savedTab === "hot" || savedTab === "residents") setTab(savedTab);
     setBannerOff(localStorage.getItem("huzhi_banner_off") === "1");
   }, []);
 
@@ -152,6 +154,7 @@ export default function Home() {
   function dismissBanner() {
     setBannerOff(true);
     localStorage.setItem("huzhi_banner_off", "1");
+    document.documentElement.setAttribute("data-banner-off", "true");
   }
 
   const loadMore = useCallback(async () => {
@@ -478,7 +481,7 @@ export default function Home() {
 
               {/* 刘看山（管理员）欢迎条：品牌人格出场，替代原活动横幅 */}
               {!bannerOff && (
-                <div className="relative">
+                <div className="home-welcome-banner relative">
                   <KanshanSays scene="welcome" seed="home-banner" density="banner" />
                   <button
                     onClick={dismissBanner}

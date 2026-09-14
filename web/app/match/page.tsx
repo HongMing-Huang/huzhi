@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { IconBolt, IconDice, IconFire, IconUsers } from "@/components/Icons";
 import { useRouter } from "next/navigation";
-import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
+import { AppHeader, MobileDock, SidebarPage } from "@/components/AppChrome";
 import Kanshan from "@/components/Kanshan";
 
 interface Topic {
@@ -82,7 +82,7 @@ export default function Match() {
   return (
     <>
       <AppHeader title="灵魂对局" />
-      <PageFrame>
+      <SidebarPage>
         <section className="page-lead pt-1">
           <p className="page-kicker">1v1 无痕身份博弈</p>
           <h1 className="page-title">只凭对话，判断对面到底是谁</h1>
@@ -209,7 +209,7 @@ export default function Match() {
             </Link>
           </div>
         </section>
-      </PageFrame>
+      </SidebarPage>
       <MobileDock />
     </>
   );

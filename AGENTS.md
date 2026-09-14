@@ -326,6 +326,8 @@ zhihu/
 
 - [x] **联想浏览器 AI 翻译水合兼容（2026-09-14）**：定位 hydration mismatch 来自浏览器在 `<body>` 注入 `ai-translate-*` 属性；仅在 body 增加 `suppressHydrationWarning`，保留子组件自身水合错误提示。
 
+- [x] **闪屏修复 + 互动玩法侧栏恢复（2026-09-14）**：根页面声明 `translate="no"` / `notranslate`，阻止联想 AI 翻译持续改写动态 DOM；横幅显隐在首帧脚本中同步，消除挂载后插入造成的布局闪动。抽取共享 `AppSidebar` / `SidebarPage`，灵魂对局、房间、代笔现场、同频匹配桌面端均保留“内容浏览 / 互动玩法”侧栏与当前项高亮；四路由浏览器验证无控制台错误。
+
 ### 本轮约束（用户要求）
 - **不自行执行生产构建/部署**（本轮仅跑了 `tsc --noEmit` 类型检查，零错误）。运行验证由用户自行执行（`cd web && npm run dev`）。
 

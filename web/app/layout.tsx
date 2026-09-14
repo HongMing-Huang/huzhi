@@ -16,12 +16,14 @@ const APPLY_PREFS = `(function(){try{
   var p = JSON.parse(localStorage.getItem('huzhi_prefs') || '{}');
   if (p.reduceMotion) document.documentElement.setAttribute('data-reduce-motion','true');
   if (p.autoExpand) document.documentElement.setAttribute('data-auto-expand','true');
+  if (localStorage.getItem('huzhi_banner_off') === '1') document.documentElement.setAttribute('data-banner-off','true');
 }catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" className="notranslate" translate="no" suppressHydrationWarning>
       <head>
+        <meta name="google" content="notranslate" />
         <script dangerouslySetInnerHTML={{ __html: APPLY_PREFS }} />
       </head>
       {/* Some browser translation tools inject attributes on <body> before React hydrates. */}

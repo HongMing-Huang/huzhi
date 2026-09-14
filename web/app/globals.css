@@ -136,6 +136,21 @@ b, strong { font-weight: var(--w-bold); }
 }
 .page-frame-wide { width: min(1046px, 100%); }
 
+.sidebar-page-shell {
+  width: min(1120px, 100%);
+  min-height: calc(100vh - 58px);
+  margin: 0 auto;
+  padding: 10px 20px 72px;
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+}
+.sidebar-page-main {
+  width: min(760px, 100%);
+  min-width: 0;
+  flex: 1;
+}
+
 .page-lead {
   padding: 22px 0 18px;
   border-bottom: 1px solid var(--divider);
@@ -822,6 +837,16 @@ button:focus-visible {
   .tab-link { padding: 12px 14px; font-size: 15px; }
   .tab-link[data-active="true"]::after { left: 14px; right: 14px; }
   .content-action { margin-left: 16px; }
+  .sidebar-page-shell { padding: 14px 16px 82px; }
+}
+
+@media (max-width: 1023px) {
+  .sidebar-page-shell {
+    width: min(760px, 100%);
+    display: block;
+    padding-top: 24px;
+  }
+  .sidebar-page-main { width: 100%; }
 }
 
 /* ============================================================
@@ -838,6 +863,8 @@ button:focus-visible {
     radial-gradient(1200px 380px at 50% -120px, rgba(23, 114, 246, 0.05), transparent 70%),
     linear-gradient(180deg, #fbfcfe 0%, var(--bg) 260px);
 }
+
+html[data-banner-off="true"] .home-welcome-banner { display: none; }
 
 /* 刘看山欢迎条：极浅蓝底 + 左侧主色细条，克制但有存在感 */
 .kanshan-banner {

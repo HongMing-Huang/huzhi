@@ -6,7 +6,7 @@ import Link from "next/link";
 import ChatWindow from "@/components/ChatWindow";
 import { personaById } from "@/lib/ai/personas";
 import { IconMask, IconRobot, IconUser as IconUserIco, IconSearch as IconSearchIco } from "@/components/Icons";
-import { AppHeader } from "@/components/AppChrome";
+import { AppHeader, SidebarPage } from "@/components/AppChrome";
 import type { ClientRoom, GuessKind } from "@/lib/game/types";
 
 interface Clue {
@@ -137,11 +137,11 @@ export default function RoomPage() {
 
   if (fatal) {
     return (
-      <><AppHeader title="灵魂对局" /><main className="page-frame grid place-items-center text-center"><div><h1 className="text-lg font-medium">这场对局已经结束</h1><p className="mt-2 text-sm text-[color:var(--meta)]">{fatal}</p><Link href="/match" className="btn btn-primary mt-5 inline-block px-6 py-2.5">重新开一局</Link></div></main></>
+      <><AppHeader title="灵魂对局" /><SidebarPage><div className="grid min-h-[60vh] place-items-center text-center"><div><h1 className="text-lg font-medium">这场对局已经结束</h1><p className="mt-2 text-sm text-[color:var(--meta)]">{fatal}</p><Link href="/match" className="btn btn-primary mt-5 inline-block px-6 py-2.5">重新开一局</Link></div></div></SidebarPage></>
     );
   }
   if (!data) {
-    return <><AppHeader title="灵魂对局" /><main className="page-frame"><div className="space-y-4 py-5" aria-label="对局装载中"><div className="skeleton h-4 w-full" /><div className="skeleton h-[320px] w-full" /><div className="skeleton h-20 w-full" /></div></main></>;
+    return <><AppHeader title="灵魂对局" /><SidebarPage><div className="space-y-4 py-5" aria-label="对局装载中"><div className="skeleton h-4 w-full" /><div className="skeleton h-[320px] w-full" /><div className="skeleton h-20 w-full" /></div></SidebarPage></>;
   }
 
   const me = data.you;
@@ -163,8 +163,9 @@ export default function RoomPage() {
           </button>
         </div>
       } />
+      <SidebarPage>
       {/* 对局话题：完整展示，不再塞进顶栏被截断 */}
-      <div className="mx-auto max-w-[760px] px-5 pt-4">
+      <div className="pt-4">
         <p className="text-[13px] text-[color:var(--time)]">本局话题</p>
         <h1 className="mt-1 text-[17px] font-medium leading-[26px] text-[color:var(--ink)]">
           {data.topic.title}
@@ -183,7 +184,7 @@ export default function RoomPage() {
 
       {/* 轮次进度：光有色条读者不知道在表示什么，补一句说明 */}
       <div
-        className="mx-auto mt-3 max-w-[760px] px-5"
+        className="mt-3"
         aria-label={`第 ${data.round} 轮，共 ${data.maxRounds} 轮`}
       >
         <div className="flex items-center gap-2">
@@ -205,7 +206,7 @@ export default function RoomPage() {
               : "对话进度 · 现在可以锁定判断并下注"}
         </p>
       </div>
-      <main className="mx-auto max-w-[760px] px-5 pb-10">
+      <div className="pb-10">
 
       {/* 聊天窗口（新设计） */}
       <ChatWindow
@@ -362,7 +363,8 @@ export default function RoomPage() {
           </section>
         </div>
       )}
-      </main>
+      </div>
+      </SidebarPage>
     </>
   );
 }
