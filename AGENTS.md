@@ -420,6 +420,13 @@ zhihu/
   - [x] 仓库状态：本轮部署改动（Dockerfile/.dockerignore/db.ts DATA_DIR/next.config standalone）+ 审计记录 + DEPLOY v51 已提交推送；`tsc --noEmit` 零错误
   - [x] **Mimosa 安全门拦截提交 → 4 处发现全部处置（架构级修复）**：①Web→sidecar 主动探测整体废除，改为 **sidecar 5s push 心跳**（POST /api/agents/runtime；`lib/agents/sidecar-heartbeat.ts` globalThis 存新鲜度，Web 端对 sidecar **零出站请求=零 SSRF 面**）；本地兜底循环只在「心跳在线 **且** autonomy=true」时让位——同步修复审计 50 轮“健康但停摆”缺陷；可选 `OASIS_SIDECAR_TOKEN` 心跳令牌，`OASIS_ENGINE_URL` 退役 ②`huzhi_bridge.py` 出站三重校验：协议/凭据 + 解析 IP 边界（私网/环回默认拒绝，`HUZHI_ALLOW_PRIVATE_TARGET=1` 显式本地伴生模式）+ 请求前重解析求交防 DNS rebinding、不跟随重定向；心跳 `post_runtime_status` 与动作转发共用同一边界 ③kindred 中危判定为误报（知乎客户端固定官方域名+路径白名单+searchParams 编码，用户数据只进查询参数不变更主机）④`.env.example` 双端同步；验证：tsc 零错误、py_compile 通过、桥接契约测试 5/5
   - [ ] 待用户动作（今晚完成，明早 10:00 截止）：容器平台建服务（Git 构建 root=web 或推 ghcr 镜像）→ 配 env（ZHIHU_ACCESS_SECRET + LLM 三键 + OAuth 二键）→ 挂卷 /app/.data → 跑自检清单 → 注册评委测试账号 → **仓库转公开** → 提交页填表发布
+- [x] **本轮（52）· 用户定调用 Vercel → 数据层 Upstash 双模式落地（Vercel 最后一个阻塞项清零，2026-09-15 凌晨）**
+  - [x] `lib/db.ts` 重写双模式：**文件模式**（默认，行为逐字节不变）/ **Upstash REST 模式**（配置 UPSTASH_REDIS_REST_URL/TOKEN）——整集合 JSON 存 Redis key、19 个集合经 SADD 索引注册、`instrumentation.ts` 冷启动预热（先于任何请求 await）、写入内存同步生效 + 响应后 `after()` 回写、失败退避重试；预热未完成/失败时**回写冻结（只读保护）**，绝不用空数据覆盖远端
+  - [x] 安全边界（Mimosa 两次拦截后定稿）：出站仅 https + `*.upstash.io` 固定服务方白名单（与知乎客户端固定官方域名同模式），**每次 fetch 前就地断言** + `redirect:"error"` + URL 不携带身份信息
+  - [x] **实测**：双进程 harness `scripts/test-db-upstash.mts`（本地 mock Upstash REST 服务 + fetch 桩转发，域名白名单照常生效）——实例 A 写 users/banks → **完全独立的进程 B 冷启动读回一致（跨实例持久化成立）**；过程中修一个真实缺陷：pipeline 条目缺失/出错时错误标记 loaded 导致读到空值。`tsc --noEmit` 零错误
+  - [x] Vercel 可用性定稿（DEPLOY.md 增补路线 B 完整步骤）：数据层 ✅；剩余唯一硬伤 = **vercel.app 大陆不可达，必须绑自定义域名**才可作提交链接；函数区域选 hkg1；Agent 自主生活 serverless 上惰性触发（诚实口径）；跨实例「整集合后写者胜」（答辩如实说明，生产版走 Supabase 事务）
+  - [x] GHCR 镜像推送尝试失败：gh token 缺 `write:packages` scope（交互授权属用户，未擅自刷新；`gh auth refresh -h github.com -s write:packages` 后可推）——Zeabur Git 构建路线不受影响
+  - [x] 决策口径：**有自定义域名 → Vercel 可作提交链接；没有 → 主链接必须走香港容器平台（路线 A）**，两路线部署材料均已就绪并实测
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（**DEPLOY.md v51 定稿：主链接走 Docker+持久卷香港容器平台，镜像构建与持久化冒烟已本地验证**；平台账号注册与部署授权需用户本人操作，约 30 分钟）
 - [ ] 道具商店（伪装道具/侦探工具/反套路）接入对局
