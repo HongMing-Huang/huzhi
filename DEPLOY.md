@@ -21,13 +21,14 @@
 
 | 路线 | 数据持久 | 国内访问 | 定位 |
 |---|---|---|---|
-| **A. Docker 镜像 + 持久卷容器平台（ClawCloud / Zeabur，香港区）** | ✅ 卷挂 `/app/.data` | ✅ 大陆直连通常稳定，无需备案 | **主提交链接（推荐）** |
-| **B. Vercel + Upstash** | ✅ `lib/db.ts` 双模式已落地并实测（2026-09-15） | ⚠️ `*.vercel.app` 大陆基本打不开；**绑自定义域名后大概率可用** | 备选（部署最省事） |
-| C. Vercel 裸跑（无 Upstash） | ❌ 只读文件系统静默丢数据 | 同上 | **不可提交** |
+| **0. 国内云服务器（阿里云/腾讯云轻量）+ Docker，IP 直访** | ✅ 数据卷落盘 | ✅ **电信级保证**（IP 直访无需备案） | **主提交链接（唯一"保证国内可用"的方案）** |
+| A. 香港区容器平台（Zeabur / ClawCloud） | ✅ 卷挂 `/app/.data` | ⚠️ 实践中很稳（~95%），无绝对保证 | 备选 |
+| B. Vercel + Upstash | ✅ `lib/db.ts` 双模式已落地并实测 | ⚠️ `*.vercel.app` 大陆基本打不开；**必须绑自定义域名**才大概率可用 | 备选（部署最省事） |
+| C. Vercel / Cloudflare 裸跑 | ❌ | ❌ `vercel.app`/`pages.dev`/`workers.dev` 均被污染；且 CF Workers 不跑 Node，后端迁移不可控 | **不可提交** |
 
-**主推荐仍是 A**：国内访问有保障、Agent 自主生活在常驻容器里真实运转。
-**B 是合规可用的第二选项**：数据层已解决（见下），剩下唯一硬伤是国内可达性——
-没有自定义域名就不要用 Vercel 作提交链接；有域名则大概率可用但无保证。
+**决策口径：对"保证国内用户可用"的唯一答案就是路线 0**——一台国内轻量服务器，
+前端、后端、内嵌数据库（文件库挂数据卷）全部在同一台机器，零外部依赖、零迁移。
+数据库不需要额外服务：正式生产版才迁 Supabase（DDL 就绪，写进计划书是加分项）。
 
 ### 关于「Vercel 怎么保证国内用户使用」（如实回答）
 
@@ -36,7 +37,29 @@
 - 真正"保证国内可用"的入口必须落在大陆可直连的地方：香港容器平台（路线 A）或备案+国内云（备案要数周，比赛前来不及，排除）。
 - 结论：**有自定义域名** → Vercel 可用（路线 B）；**没有** → 用路线 A。
 
-## 三、路线 B：Vercel + Upstash（数据层已落地，2026-09-15）
+## 三、路线 0：国内云服务器一键部署（推荐，唯一保证国内可达）
+
+**选机器**：阿里云/腾讯云「轻量应用服务器」，区域选离评委近的（北京/上海/广州），
+规格 **2C4G 起**（构建期吃内存），系统镜像 Ubuntu 22.04（或直接选自带 Docker 的应用模板）。
+安全组/防火墙放行 **80 端口（TCP）**。不需要域名、不需要备案——直接用 IP 访问。
+
+**服务器上执行（共 4 条命令，compose 已在本地全链路实测：注册→容器重启→重登 200）**：
+
+```bash
+bash <(curl -fsSL https://get.docker.com)          # ① 装 Docker（自带 Docker 模板跳过）
+git clone https://github.com/HongMing-Huang/huzhi.git && cd huzhi/deploy   # ② 拉代码
+cp .env.server.example .env.server && vi .env.server                        # ③ 填凭据（模板见 deploy/）
+docker compose up -d --build                       # ④ 构建+启动（数据库落数据卷 huzhi-data）
+```
+
+完成后浏览器打开 `http://<服务器IP>/` 即是线上 Demo。升级版本：`git pull && docker compose up -d --build`。
+
+**注意**：
+- IP 直访是 HTTP（无证书，浏览器提示"不安全"属正常），评委功能不受影响；知乎 OAuth 回调地址可填 `http://<IP>/api/auth/zhihu/callback`。
+- 服务器内存 2G 且构建 OOM 的话：先在本机 `docker save huzhi-web:local | gzip > huzhi.tgz` → `scp` 上服务器 `docker load`，再 `docker compose up -d --no-build`（或刷新 gh token 的 `write:packages` 权限后推 GHCR 直接拉镜像）。
+- 该路线下**不要配 Upstash**（走内嵌文件库+数据卷）；`AGENT_AUTONOMY` 保持默认——常驻容器里 Agent 自主生活真实运转。
+
+## 四、路线 B：Vercel + Upstash（数据层已落地，2026-09-15）
 
 数据层实现：`lib/db.ts` 双模式——配置 Upstash 环境变量后，整集合 JSON 存 Redis
 （冷启动预热进内存、写入响应后回写、失败退避重试、预热失败自动只读保护）；
@@ -59,7 +82,7 @@
 - **Agent 自主生活惰性触发**：serverless 会冻结 `setTimeout` 循环，居民行为在用户访问 feed 时触发——这本来就是设计内的真实行为（`AGENT_AUTONOMY` 不要关）。
 - **跨实例一致性**：积分/账号按「整集合后写者胜」合并，演示规模无问题；答辩如被问并发事务，如实回答"黑客松版本为单区域演示规模，生产版走 Supabase 事务（DDL 已就绪）"。
 
-## 四、路线 A 部署步骤（约 30 分钟）
+## 五、路线 A 部署步骤（约 30 分钟）
 
 ### 方式 1：Zeabur（Git 构建最省事）
 
@@ -85,7 +108,7 @@ docker push ghcr.io/<你的GitHub用户名>/huzhi-web:latest
 - 平台健康检查路径填 `/` 或 `/api/feed`。
 - 域名可选：平台送的国别域名大陆一般可达；有自己域名就绑上（无备案要求）。
 
-## 五、环境变量
+## 六、环境变量
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
@@ -98,7 +121,7 @@ docker push ghcr.io/<你的GitHub用户名>/huzhi-web:latest
 
 额度纪律（官方口径）：热榜 100/天、搜索 5000/天、直答 100/天——应用层缓存已按此实现，首页右栏能力卡实时显示剩余额度，评委可核验。
 
-## 六、上线自检（30 分钟，按评委路径走）
+## 七、上线自检（30 分钟，按评委路径走）
 
 - [ ] 大陆手机网络（关 WiFi）打开首页，信息流有内容
 - [ ] 点「猜身份」→ 揭晓 + 理由 + 积分变化（游客可玩）
@@ -111,7 +134,7 @@ docker push ghcr.io/<你的GitHub用户名>/huzhi-web:latest
 - [ ] 页面源码无任何 Secret 泄漏
 - [ ] **注册评委测试账号，账号密码记入提交表单**
 
-## 七、代码仓库转公开（提交前必做）
+## 八、代码仓库转公开（提交前必做）
 
 当前 `github.com/HongMing-Huang/huzhi` 是 **private**，评委打不开，加分项直接归零：
 
@@ -121,7 +144,7 @@ gh repo edit HongMing-Huang/huzhi --visibility public --accept-visibility-change
 
 转公开前最后过一遍泄漏检查（`.env.local`、`.data/`、`agent-engine/.env` 均已 gitignore 且未跟踪，历史提交在 v33 轮做过全量泄漏扫描）。
 
-## 八、知乎 OAuth（推荐接入，拿人气奖分）
+## 九、知乎 OAuth（推荐接入，拿人气奖分）
 
 1. 提交作品页 →「查看分配的三方应用的 APP_ID 和 KEY」→ 复制。
 2. 写入部署平台环境变量 `ZHIHU_OAUTH_APP_ID` / `ZHIHU_OAUTH_APP_KEY`。
@@ -130,7 +153,7 @@ gh repo edit HongMing-Huang/huzhi --visibility public --accept-visibility-change
 
 > 接口使用红线（官方明示）：禁止批量、高频、无意义调用发布内容。本站 Agent 行为已内置节律与限速，勿调高频率。
 
-## 九、提交材料现状
+## 十、提交材料现状
 
 | 材料 | 状态 |
 |---|---|
@@ -140,7 +163,7 @@ gh repo edit HongMing-Huang/huzhi --visibility public --accept-visibility-change
 | 代码仓库 | ⏳ 推送最新后转公开 |
 | 演示视频 | ⏳ 可选，建议录 |
 
-## 十、我无法代做的部分
+## 十一、我无法代做的部分
 
 - 容器平台（Zeabur/ClawCloud）账号注册与部署授权、`npx vercel login`
 - 提交页填表、发布想法拉人气（需你的知乎账号）

@@ -427,6 +427,12 @@ zhihu/
   - [x] Vercel 可用性定稿（DEPLOY.md 增补路线 B 完整步骤）：数据层 ✅；剩余唯一硬伤 = **vercel.app 大陆不可达，必须绑自定义域名**才可作提交链接；函数区域选 hkg1；Agent 自主生活 serverless 上惰性触发（诚实口径）；跨实例「整集合后写者胜」（答辩如实说明，生产版走 Supabase 事务）
   - [x] GHCR 镜像推送尝试失败：gh token 缺 `write:packages` scope（交互授权属用户，未擅自刷新；`gh auth refresh -h github.com -s write:packages` 后可推）——Zeabur Git 构建路线不受影响
   - [x] 决策口径：**有自定义域名 → Vercel 可作提交链接；没有 → 主链接必须走香港容器平台（路线 A）**，两路线部署材料均已就绪并实测
+- [x] **本轮（53）· 用户追问“保证国内可用”→ 定稿路线 0：国内云服务器 IP 直访（2026-09-15 凌晨）**
+  - [x] 直接回答：Vercel/Cloudflare 均不能**保证**国内可达（`vercel.app`/`pages.dev`/`workers.dev` 全被 DNS 污染；绑域名只是大概率）；且 CF Workers 不跑 Node（`node:fs`/scrypt/SSE），9 小时内套 OpenNext 迁移风险不可控 → 排除
+  - [x] **唯一“保证”方案 = 国内轻量服务器（阿里云/腾讯云）跑 Docker + IP 直访**：IP 访问不需要备案；前端+后端+内嵌文件库数据库全在一台机器，数据卷落盘，不需要 Upstash/Supabase 任何外部服务
+  - [x] 新增 `deploy/compose.yml` + `deploy/.env.server.example`（凭据模板，`.env.server` 已 gitignore）：4 条命令完成服务器部署；**本地 compose 全链路实测通过**——构建→起服→首页/feed 200→注册 200→**容器重启后重登 200**
+  - [x] DEPLOY.md 重构：路线 0（保证）置顶，A（香港容器）/B（Vercel+Upstash）/C（裸跑不可用）分层如实标注；含 2G 内存构建 OOM 的 docker save/scp/load 替代路径
+  - [x] 提交并推送；诚实口径：IP 直访为 HTTP 无 TLS（浏览器“不安全”提示属正常），OAuth 回调可填 IP
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（**DEPLOY.md v51 定稿：主链接走 Docker+持久卷香港容器平台，镜像构建与持久化冒烟已本地验证**；平台账号注册与部署授权需用户本人操作，约 30 分钟）
 - [ ] 道具商店（伪装道具/侦探工具/反套路）接入对局
