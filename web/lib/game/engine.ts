@@ -6,7 +6,7 @@ import { assignBotIdentity, assignHumanIdentity, secureRand } from "@/lib/agents
 import { botLockNow, botMaybeLock, botOpening, botReply } from "@/lib/agents/bot-player";
 import { PERSONAS } from "@/lib/ai/personas";
 import { takeInsuranceIfArmed } from "@/lib/social";
-import { isIdentity, type ClientRoom, type GuessKind, type Identity, type Player, type Room, type Topic } from "./types";
+import { isIdentity, type ChatMessage, type ClientRoom, type GuessKind, type Identity, type Player, type Room, type Topic } from "./types";
 
 const MAX_ROUNDS = 5;
 
@@ -72,11 +72,12 @@ export function createHumanRoom(
   return room;
 }
 
-export async function addUserMessage(room: Room, playerId: string, text: string): Promise<void> {
+export async function addUserMessage(room: Room, playerId: string, text: string, sticker?: ChatMessage["sticker"]): Promise<void> {
   if (room.phase !== "chat") throw new Error("对局已结束");
   const clean = text.trim().slice(0, 500);
-  if (!clean) throw new Error("不能发空消息");
-  if (/我是(个?AI|Ai|ai|人工智能|真人|人类|机器人|程序)/.test(clean)) {
+  // 贴纸消息：text 可为空；文本消息必须非空
+  if (!sticker && !clean) throw new Error("不能发空消息");
+  if (clean && /我是(个?AI|Ai|ai|人工智能|真人|人类|机器人|程序)/.test(clean)) {
     throw new Error("反套路规则：禁止自曝身份！");
   }
   const prev = room.messages[room.messages.length - 1];
@@ -84,9 +85,10 @@ export async function addUserMessage(room: Room, playerId: string, text: string)
   room.messages.push({
     id: randomUUID().slice(0, 8),
     from: playerId,
-    text: clean,
+    text: sticker ? "" : clean,
     ts: Date.now(),
     responseMs: prev ? Math.min(99999, Date.now() - prev.ts) : 0,
+    ...(sticker ? { sticker } : {}),
   });
   const turnCounts = room.players.map((p) => room.messages.filter((m) => m.from === p.id).length);
   room.round = Math.min(MAX_ROUNDS, Math.min(...turnCounts));

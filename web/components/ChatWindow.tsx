@@ -8,9 +8,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/lib/game/types";
 
-/** 表情面板：刘看山系 + 常用（聊天能发表情，对局更像真人） */
-const KANSHAN_EMOJI = ["🦊", "❄️", "🧊", "👀", "😌", "🙃", "📣", "💬", "🎣", "🥶"];
-const COMMON_EMOJI = ["😂", "😅", "😭", "😐", "🤔", "👍", "🔥", "❤️", "🍉", "☕", "🙏", "🥹"];
+/** 微信式表情包：内置刘看山（三态 GIF 即三张贴纸），点击直接发送 */
+const STICKERS: { key: "wave" | "idle" | "stroll"; label: string }[] = [
+  { key: "wave", label: "打招呼" },
+  { key: "idle", label: "静静看你" },
+  { key: "stroll", label: "遛个弯" },
+];
 
 function fmtTime(ts: number): string {
   const d = new Date(ts);
@@ -49,11 +52,17 @@ export default function ChatWindow({
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, busy]);
 
-  function send() {
-    const text = input.trim();
-    if (!text || busy || disabled) return;
-    setInput("");
-    onSend(text);
+  function send(sticker?: "wave" | "idle" | "stroll") {
+    if (busy || disabled) return;
+    if (!sticker) {
+      const text = input.trim();
+      if (!text) return;
+      setInput("");
+      onSend(text);
+      return;
+    }
+    setEmojiOpen(false);
+    onSend(sticker); // onSend 收到贴纸键名，room 页转成 sticker 请求
   }
 
   return (
@@ -78,7 +87,11 @@ export default function ChatWindow({
                 <span className="text-[11px] text-[color:var(--meta)]">
                   {meName} · {fmtTime(m.ts)}
                 </span>
-                <div className="bubble-mine px-4 py-2.5 text-[15px] leading-7 whitespace-pre-wrap">{m.text}</div>
+                {m.sticker ? (
+                  <img src={`/kanshan/${m.sticker}.gif`} alt="刘看山表情包" className="h-16 w-16 rounded-lg object-contain" />
+                ) : (
+                  <div className="bubble-mine px-4 py-2.5 text-[15px] leading-7 whitespace-pre-wrap">{m.text}</div>
+                )}
               </div>
             </div>
           ) : (
@@ -90,13 +103,15 @@ export default function ChatWindow({
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-[color:var(--meta)]">
                   <b className="text-[color:var(--ink-2)]">{oppName}</b> · {fmtTime(m.ts)}
-                  {/* 耗时小于 0.1s 时不显示——"0.0s 后回复"既不自然也没有信息量，
-                      而回复快慢本身是判断身份的线索之一，不能给假数据 */}
                   {m.responseMs >= 100 && (
                     <span className="ml-2 tnum opacity-70">{(m.responseMs / 1000).toFixed(1)}s 后回复</span>
                   )}
                 </p>
-                <p className="mt-1 text-[15px] leading-7 whitespace-pre-wrap text-[color:var(--ink)]">{m.text}</p>
+                {m.sticker ? (
+                  <img src={`/kanshan/${m.sticker}.gif`} alt="刘看山表情包" className="mt-1 h-16 w-16 rounded-lg object-contain" />
+                ) : (
+                  <p className="mt-1 text-[15px] leading-7 whitespace-pre-wrap text-[color:var(--ink)]">{m.text}</p>
+                )}
               </div>
             </div>
           ),
@@ -143,32 +158,35 @@ export default function ChatWindow({
             send();
           }}
         >
-          {/* 表情按钮 */}
+          {/* 贴纸按钮（微信式表情包：内置刘看山） */}
           <div className="relative shrink-0">
             <button
               type="button"
               onClick={() => setEmojiOpen((v) => !v)}
-              aria-label="发表情"
+              aria-label="发表情包"
               disabled={disabled}
-              className="grid h-11 w-11 place-items-center rounded-full border border-[color:var(--line)] bg-[color:var(--bg)] text-lg transition hover:border-[color:var(--zhihu)] disabled:opacity-40"
+              className="grid h-11 w-11 place-items-center overflow-hidden rounded-full border border-[color:var(--line)] bg-[color:var(--bg)] transition hover:border-[color:var(--zhihu)] disabled:opacity-40"
             >
-              😊
+              <img src="/kanshan/wave.gif" alt="" className="h-7 w-7 object-contain" />
             </button>
             {emojiOpen && !disabled && (
               <>
-                <div className="absolute bottom-full right-0 z-20 mb-2 w-64 rounded-xl border border-[color:var(--line)] bg-white p-3 shadow-[0_10px_40px_rgba(0,0,0,.14)]">
-                  <p className="text-[11px] text-[color:var(--time)]">刘看山系</p>
-                  <div className="mt-1 grid grid-cols-5 gap-1">
-                    {KANSHAN_EMOJI.map((e) => (
-                      <button key={e} type="button" onClick={() => { setInput((v) => v + e); inputRef.current?.focus(); }} className="rounded p-1 text-xl transition hover:bg-[color:var(--frame)]">{e}</button>
+                <div className="absolute bottom-full right-0 z-20 mb-2 w-56 rounded-xl border border-[color:var(--line)] bg-white p-3 shadow-[0_10px_40px_rgba(0,0,0,.14)]">
+                  <p className="text-[11px] text-[color:var(--time)]">刘看山表情包 · 点击直接发送</p>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {STICKERS.map((s) => (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => send(s.key)}
+                        title={s.label}
+                        className="grid place-items-center rounded-lg border border-[color:var(--line)] p-1.5 transition hover:border-[color:var(--zhihu)] hover:bg-[color:var(--frame)]"
+                      >
+                        <img src={`/kanshan/${s.key}.gif`} alt={s.label} className="h-14 w-14 object-contain" />
+                      </button>
                     ))}
                   </div>
-                  <p className="mt-2 text-[11px] text-[color:var(--time)]">常用</p>
-                  <div className="mt-1 grid grid-cols-5 gap-1">
-                    {COMMON_EMOJI.map((e) => (
-                      <button key={e} type="button" onClick={() => { setInput((v) => v + e); inputRef.current?.focus(); }} className="rounded p-1 text-xl transition hover:bg-[color:var(--frame)]">{e}</button>
-                    ))}
-                  </div>
+                  <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--time)]">想发文字请直接输入；发送贴纸也算一轮发言。</p>
                 </div>
                 <button aria-hidden className="fixed inset-0 z-10" onClick={() => setEmojiOpen(false)} />
               </>

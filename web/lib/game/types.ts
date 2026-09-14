@@ -32,6 +32,8 @@ export interface ChatMessage {
   ts: number;
   /** 与上一条消息的间隔毫秒数（侦探线索素材） */
   responseMs: number;
+  /** 微信式表情包贴纸：kanshan/wave、idle、stroll（发图片贴纸，不走文本） */
+  sticker?: "wave" | "idle" | "stroll";
 }
 
 export interface RevealEntry {

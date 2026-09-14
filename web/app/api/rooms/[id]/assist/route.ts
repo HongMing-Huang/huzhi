@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { store } from "@/lib/game/store";
 import { analyzeMessages } from "@/lib/agents/detective-assist";
-import { suggestDisguise } from "@/lib/agents/disguise-assist";
+import { suggestDisguise, disguiseStarter } from "@/lib/agents/disguise-assist";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -34,9 +34,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   if (kind === "disguise") {
-    const draft = (body.draft ?? "").trim().slice(0, 300);
-    if (!draft) return NextResponse.json({ error: "先写点草稿再请求伪装参考" }, { status: 400 });
     const personaId = me.personaId ?? "answerer";
+    const draft = (body.draft ?? "").trim().slice(0, 300);
+    // 没写草稿也能帮上忙：给"伪装开场小抄"（技巧 + 开场白），对真人伪装者是即时帮助
+    if (!draft) {
+      const starter = await disguiseStarter(room.topic.title, personaId);
+      return NextResponse.json({
+        tips: starter.tips,
+        openers: starter.openers,
+        note: "仅供参考，须手动誊改；你也可以写草稿后再请求逐句改写",
+        source: starter.source,
+      });
+    }
     const result = await suggestDisguise(draft, room.topic.title, personaId, room.round);
     return NextResponse.json({
       suggestions: result.suggestions,

@@ -33,6 +33,8 @@ export default function RoomPage() {
   const [clues, setClues] = useState<Clue[] | null>(null);
   const [assistNote, setAssistNote] = useState("");
   const [suggestions, setSuggestions] = useState<string[] | null>(null);
+  const [disguiseTips, setDisguiseTips] = useState<string[] | null>(null);
+  const [disguiseOpeners, setDisguiseOpeners] = useState<string[] | null>(null);
   const [pid, setPid] = useState("");
   const [showMission, setShowMission] = useState(true);
 
@@ -107,11 +109,17 @@ export default function RoomPage() {
   // 对称辅助：双方同一个按钮，服务端按身份分流（伪装者→AI 腔参考；真人→特征线索）
   const assist = useCallback(async () => {
     const mine = data?.messages.filter((m) => m.from === pid).slice(-1)[0]?.text;
-    const draft = mine ?? `关于「${data?.topic.title ?? "这个话题"}」，我先说说我的看法`;
+    // 没发过言就不编草稿：伪装者拿到「开场小抄」，真人拿到线索或提示
+    const draft = mine ?? "";
     const d = await post("assist", { kind: "auto", draft });
     if (d?.clues) setClues(d.clues as Clue[]);
     if (d?.suggestions) {
       setSuggestions(d.suggestions as string[]);
+      setAssistNote(d.note ?? "");
+    }
+    if (d?.tips) {
+      setDisguiseTips(d.tips as string[]);
+      setDisguiseOpeners(d.openers as string[]);
       setAssistNote(d.note ?? "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -223,7 +231,11 @@ export default function RoomPage() {
             ? ["首先，这个问题要拆开看", "综上，理性吃瓜", "希望对你有帮助"]
             : ["你为什么回这么快？", "说点你自己的经历？", "换个说法试试？"]
         }
-        onSend={(text) => post("message", { text })}
+        onSend={(payload) =>
+          payload === "wave" || payload === "idle" || payload === "stroll"
+            ? post("message", { sticker: payload })
+            : post("message", { text: payload })
+        }
       />
 
       {/* 辅助工具行（对称：双方同一按钮，服务端按身份给不同内容） */}
@@ -257,6 +269,19 @@ export default function RoomPage() {
           {suggestions.map((s, i) => (
             <p key={i} className="text-[color:var(--meta)]">- {s}</p>
           ))}
+        </div>
+      )}
+      {disguiseTips && disguiseOpeners && (
+        <div className="card mt-3 space-y-2 p-4 text-sm">
+          <p className="text-xs font-bold text-[#b03aa0]">伪装开场小抄（都须手动改写，禁止直发）</p>
+          <p className="text-[13px] font-semibold text-[color:var(--ink-2)]">装 AI 的技巧</p>
+          <ul className="list-disc pl-5 text-[color:var(--meta)]">
+            {disguiseTips.map((t, i) => <li key={i}>{t}</li>)}
+          </ul>
+          <p className="text-[13px] font-semibold text-[color:var(--ink-2)]">开场白示例</p>
+          <ul className="list-disc pl-5 text-[color:var(--meta)]">
+            {disguiseOpeners.map((o, i) => <li key={i}>{o}</li>)}
+          </ul>
         </div>
       )}
 
