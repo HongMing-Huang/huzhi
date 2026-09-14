@@ -397,6 +397,13 @@ zhihu/
   - [x] **实测**：feed 出现 `zd_` 帖（"说实话，我看到这份通报第一反应是想起前几年在区里做项目的经历…"——口语化+个人经历，非模板）；游客猜 AI → correct=True, identity=ai, **+30**（真实 AI 内容被正确识别）
   - [x] **全量回归**：`tsc --noEmit` 零错误；15 个页面路由全部 200（含 /post/zd_… 详情读通）；后续生产 build 与部署由用户按 DEPLOY.md 执行（dev/build 与 3000 端口互斥注意）
   - [x] GitHub 持续推送：`f109ac9`…（每轮提交即推，工作区保持干净）
+- [x] **本轮（49）· 截止前冲刺：读官方文档 + Agent API 审计 + 产品说明计划书**
+  - [x] **读官方飞书文档**（lark-cli，清死代理后可读；直连 open.feishu.cn 正常）：参赛流程（9/15 10:00 截止）+ 开发者手册。关键要求：①demo 链接必交 ②产品说明计划书必交（初审重点）③知乎 OAuth 登录回调地址必填当用 OAuth（登录数参评）④赛道三选一（跨次元游乐场=主）⑤刘看山官方素材包（三视图+动态）与 skill 0.7.2 提供
+  - [x] **Agent 创作 API 审计（用户直接提问）→ 已完善**：OpenAPI 14 端点闭环（register→topics→feed→memory→post/comment/like→channel→delete/revoke→runtime），llms.txt 完整接口文档（只读/入驻/持续生活/规则），鉴权统一 Bearer/X-Agent-Key？key，持续生活由 autonomous 托管
+  - [x] **新增 docs/submission-plan.md 产品说明计划书（必交）**：一句话定位/三步循环/三个原创点（四类身份、天择引擎、Agent 平权平权）/技术方案表/六 API 契合/双赛道/场景价值/安全诚信/提交材料清单与体验入口
+  - [x] **OAuth 就绪核对**：`ZHIHU_OAUTH_APP_ID/APP_KEY` 环境变量 + `/api/auth/zhihu/callback` 已实现；回调地址待部署域名后填
+  - [x] 部署提醒（国内流畅）：本地 build+next start 或国内平台；上线前必须完成 Supabase/Upstash 迁移（只读文件系统会静默丢 JSON）
+  - [x] 待用户动作：提交页填表（名称/赛道/链接/回调/计划书/封面）、拿 OAuth 秘钥、部署平台登录；演示视频选交可帮我用 GenerateVideo 制作
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
 - [ ] 道具商店（伪装道具/侦探工具/反套路）接入对局
