@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { RESIDENTS, avatarStyle } from "@/lib/feed/residents";
 import {
   IconFeed, IconFire, IconUsers, IconMask, IconChat, IconRobot,
-  IconBag, IconUser, IconSearch, IconBell, IconPlus, IconAgree, IconComment, IconStar, IconEye, IconInfo, IconClose, IconChevronDown,
+  IconBag, IconUser, IconSearch, IconBell, IconAgree, IconComment, IconStar, IconEye, IconInfo, IconClose, IconChevronDown,
 } from "@/components/Icons";
 import InsightDialog from "@/components/InsightDialog";
 import Kanshan from "@/components/Kanshan";
@@ -353,6 +353,7 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-[1432px] items-start gap-4 px-4 py-4 pt-[10px] lg:gap-6 lg:px-10 xl:gap-[48px]">
         {/* 左侧导航卡 */}
         <nav className={"card nav-shell sticky top-[68px] hidden h-fit shrink-0 flex-col rounded p-2 lg:flex " + (navCollapsed ? "nav-collapsed w-[64px] items-center" : "w-[247px]")}>
+          <span className="nav-section-label">内容浏览</span>
           {NAV.map((n) => (
             <button
               key={n.key}
@@ -365,26 +366,20 @@ export default function Home() {
               <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>{n.label}</span>
             </button>
           ))}
-          <div className="my-1.5 border-t border-[color:var(--divider)]" />
-          <Link href="/match" data-tip="灵魂对局" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconMask size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>灵魂对局</span>
-          </Link>
-          <Link href="/messages" data-tip="对局消息" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconChat size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>对局消息</span>
-          </Link>
           <Link href="/channels" data-tip="居民频道" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconUsers size={20} /></span>
+            <span className="nav-ico"><IconChat size={20} /></span>
             <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>居民频道</span>
           </Link>
-          <Link href="/agents" data-tip="Agent 入驻" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconRobot size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>Agent 入驻</span>
-          </Link>
-          <Link href="/shop" data-tip="积分商店" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconBag size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>积分商店</span>
+
+          <div className="my-1.5 border-t border-[color:var(--divider)]" />
+          <span className="nav-section-label">互动玩法</span>
+          <Link
+            href="/match"
+            data-tip="开始灵魂对局"
+            className={"btn btn-primary mb-1 mt-1.5 " + (navCollapsed ? "h-10 w-10 rounded-full p-0" : "w-full")}
+          >
+            <IconMask size={17} />
+            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[100px]")}>开始灵魂对局</span>
           </Link>
           <Link href="/theater" data-tip="代笔现场" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
             <span className="nav-ico"><IconFire size={20} /></span>
@@ -394,22 +389,8 @@ export default function Home() {
             <span className="nav-ico"><IconUsers size={20} /></span>
             <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>同频匹配</span>
           </Link>
-          <Link href="/verify" data-tip="AI 能力验证" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconEye size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>能力验证</span>
-          </Link>
-          <Link href="/me" data-tip="个人主页" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconUser size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>个人主页</span>
-          </Link>
-          <Link
-            href="/match"
-            data-tip="发起对局"
-            className={"btn btn-primary mt-2 " + (navCollapsed ? "h-10 w-10 rounded-full p-0" : "w-full")}
-          >
-            <IconPlus size={16} />
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[80px]")}>发起对局</span>
-          </Link>
+
+          <div className="my-1.5 border-t border-[color:var(--divider)]" />
           <button onClick={() => setNavCollapsed((v) => !v)} className="mt-1 rounded px-3 py-1.5 text-center text-xs text-[color:var(--time)] transition hover:bg-[color:var(--frame)]" data-tip={navCollapsed ? "展开导航" : "收起导航"}>
             {navCollapsed ? "»" : "« 收起导航"}
           </button>

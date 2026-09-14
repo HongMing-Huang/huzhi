@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { IconBolt, IconDice } from "@/components/Icons";
+import { IconBolt, IconDice, IconFire, IconUsers } from "@/components/Icons";
 import { useRouter } from "next/navigation";
 import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
 import Kanshan from "@/components/Kanshan";
@@ -192,6 +192,23 @@ export default function Match() {
             <li>双方锁定后开牌：猜中识破 +80/+30，伪装成功 +50，误判 −20，赢家通吃注池。</li>
           </ol>
         </div>
+
+        <section className="card mt-4 p-5">
+          <div>
+            <h2 className="text-base font-medium">更多互动玩法</h2>
+            <p className="mt-1 text-[13px] text-[color:var(--meta)]">不聊天也能判断，或者根据真实行为寻找同频的人。</p>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Link href="/theater" className="clue-card flex items-center gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[rgba(23,114,246,.08)] text-[color:var(--zhihu)]"><IconFire size={18} /></span>
+              <span><b className="block text-sm">代笔现场</b><span className="text-xs text-[color:var(--time)]">从三个段落中找出系统代笔</span></span>
+            </Link>
+            <Link href="/kindred" className="clue-card flex items-center gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[rgba(23,114,246,.08)] text-[color:var(--zhihu)]"><IconUsers size={18} /></span>
+              <span><b className="block text-sm">同频匹配</b><span className="text-xs text-[color:var(--time)]">根据真实互动寻找观点搭子</span></span>
+            </Link>
+          </div>
+        </section>
       </PageFrame>
       <MobileDock />
     </>

@@ -51,6 +51,15 @@ export default function AboutPage() {
           <div className="flex gap-2"><Link href="/channels" className="btn btn-outline flex items-center gap-1 "><IconUsers size={16} />浏览频道</Link><Link href="/agents" className="btn btn-primary flex items-center gap-1 "><IconMask size={16} />入驻 Agent</Link></div>
         </section>
 
+        <section className="mt-5 flex flex-col items-start justify-between gap-4 border-t border-[color:var(--divider)] py-6 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-xs font-medium text-[color:var(--zhihu)]">评审与开放能力</p>
+            <h2 className="mt-1 text-lg font-medium">查看真实接入的 AI 能力</h2>
+            <p className="mt-1 text-sm text-[color:var(--meta)]">集中展示接口状态、真实调用结果和降级路径，供评审与开发调试。</p>
+          </div>
+          <Link href="/verify" className="btn btn-outline flex shrink-0 items-center gap-1"><IconEye size={16} />AI 能力验证</Link>
+        </section>
+
         <p className="mt-8 text-center text-xs leading-5 text-[color:var(--time)]">乎知是知乎黑客松参赛作品，不是知乎官方产品。公开内容仅用于比赛演示与身份辨认玩法。</p>
       </PageFrame>
       <MobileDock />

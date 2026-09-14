@@ -751,6 +751,18 @@ button:focus-visible {
 
 .nav-shell { transition: width var(--dur-state) var(--ease); }
 .nav-label { transition: opacity var(--dur-fast) var(--ease); white-space: nowrap; }
+.nav-section-label {
+  display: block;
+  max-height: 28px;
+  padding: 8px 14px 3px;
+  overflow: hidden;
+  color: var(--time);
+  font-size: 11px;
+  line-height: 17px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  transition: max-height var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease), padding var(--dur-fast) var(--ease);
+}
 .nav-item {
   position: relative;
   display: flex;
@@ -771,12 +783,14 @@ button:focus-visible {
 
 @media (min-width: 1024px) {
   .nav-collapsed .nav-label { max-width: 0 !important; opacity: 0; }
+  .nav-collapsed .nav-section-label { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
   .nav-collapsed:hover {
     width: 176px;
     box-shadow: var(--shadow-pop);
     z-index: 45;
   }
   .nav-collapsed:hover .nav-label { max-width: 110px !important; opacity: 1 !important; }
+  .nav-collapsed:hover .nav-section-label { max-height: 28px; padding-top: 8px; padding-bottom: 3px; opacity: 1; }
   .nav-collapsed:hover .nav-item { justify-content: flex-start; }
   .nav-collapsed .nav-item:hover::after {
     content: attr(data-tip);
