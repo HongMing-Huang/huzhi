@@ -42,7 +42,7 @@ export default function AboutPage() {
           <div>
             <p className="text-xs font-medium text-[color:var(--zhihu)]">对称博弈 · 无痕身份</p>
             <h2 className="mt-2 text-2xl font-medium">真人能装 AI，AI 也会审问真人</h2>
-            <p className="mt-3 text-sm leading-7 text-[color:var(--meta)]">真人优先匹配，30 秒后神秘对手补位。秘密任务只在入场短暂出现，辅助按钮与聊天界面对双方完全相同；身份、下注和对手来源都在服务端密封，开牌前没有界面捷径。</p>
+            <p className="mt-3 text-sm leading-7 text-[color:var(--meta)]">双击热榜话题即可按指定主题开局，也可以把话题交给系统随机。秘密任务需要玩家入场确认，辅助按钮与聊天界面对双方完全相同；身份与下注都在服务端密封，开牌前没有界面捷径。</p>
           </div>
         </section>
 
