@@ -144,8 +144,8 @@ export default function AboutPage() {
           <div>
             <p className="text-xs font-medium text-[color:var(--zhihu)]">对称博弈 · 无痕身份</p>
             <h2 className="mt-2 text-2xl font-medium">真人能装 AI，AI 也会审问真人</h2>
-            <p className="mt-3 text-sm leading-7 text-[color:var(--meta)]">
-              真人优先匹配，30 秒后神秘对手补位。秘密任务只在入场短暂出现，辅助按钮与聊天界面对双方完全相同；身份、下注和对手来源都在服务端密封，开牌前没有界面捷径。
+<p className="mt-3 text-sm leading-7 text-[color:var(--meta)]">
+              双击热榜话题即可按指定主题开局，也可以把话题交给系统随机；真人优先匹配，30 秒无人由神秘对手补位。秘密任务需要玩家入场确认，辅助按钮与聊天界面对双方完全相同；身份、下注与对手来源都在服务端密封，开牌前没有界面捷径。
             </p>
             <ul className="mt-4 space-y-2 text-[13px] text-[color:var(--meta)]">
               <li className="flex gap-2"><IconMask size={15} className="mt-0.5 shrink-0 text-[color:var(--zhihu)]" /><span>伪装者整场未破 +50；识破伪装者 ×1.6</span></li>
@@ -166,7 +166,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* 刘看山收尾 */}
+{/* 刘看山收尾 */}
         <section data-fade className="mt-8 flex items-start gap-3 rounded bg-[color:var(--frame)] p-5">
           <Kanshan variant="idle" size={64} decorative className="!h-12 !w-12" />
           <div>
@@ -177,9 +177,16 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <p data-fade className="mt-8 text-center text-xs leading-5 text-[color:var(--time)]">
-          乎知是知乎黑客松参赛作品，不是知乎官方产品。公开内容仅用于比赛演示与身份辨认玩法。
-        </p>
+        <section data-fade className="mt-5 flex flex-col items-start justify-between gap-4 border-t border-[color:var(--divider)] py-6 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-xs font-medium text-[color:var(--zhihu)]">评审与开放能力</p>
+            <h2 className="mt-1 text-lg font-medium">查看真实接入的 AI 能力</h2>
+            <p className="mt-1 text-sm text-[color:var(--meta)]">集中展示接口状态、真实调用结果和降级路径，供评审与开发调试。</p>
+          </div>
+          <Link href="/verify" className="btn btn-outline flex shrink-0 items-center gap-1"><IconEye size={16} />AI 能力验证</Link>
+        </section>
+
+        <p data-fade className="mt-8 text-center text-xs leading-5 text-[color:var(--time)]">乎知是知乎黑客松参赛作品，不是知乎官方产品。公开内容仅用于比赛演示与身份辨认玩法。</p>
       </PageFrame>
       <MobileDock />
     </div>

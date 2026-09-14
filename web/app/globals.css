@@ -136,6 +136,21 @@ b, strong { font-weight: var(--w-bold); }
 }
 .page-frame-wide { width: min(1046px, 100%); }
 
+.sidebar-page-shell {
+  width: min(1120px, 100%);
+  min-height: calc(100vh - 58px);
+  margin: 0 auto;
+  padding: 10px 20px 72px;
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+}
+.sidebar-page-main {
+  width: min(760px, 100%);
+  min-width: 0;
+  flex: 1;
+}
+
 .page-lead {
   padding: 22px 0 18px;
   border-bottom: 1px solid var(--divider);
@@ -663,11 +678,15 @@ button:focus-visible {
 }
 .avatar-square { border-radius: 3px; } /* 官方 .SearchBar-userAvatar */
 
-.logo-script {
-  font-family: "Kaiti SC", "STKaiti", "KaiTi", "DFKai-SB", serif;
-  font-weight: 900;
+.huzhi-logo {
+  display: block;
+  width: auto;
   color: var(--zhihu);
-  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.huzhi-logo path {
+  fill: currentColor;
 }
 
 .display { font-weight: var(--w-bold); letter-spacing: -0.01em; line-height: 1.3; }
@@ -747,6 +766,18 @@ button:focus-visible {
 
 .nav-shell { transition: width var(--dur-state) var(--ease); }
 .nav-label { transition: opacity var(--dur-fast) var(--ease); white-space: nowrap; }
+.nav-section-label {
+  display: block;
+  max-height: 28px;
+  padding: 8px 14px 3px;
+  overflow: hidden;
+  color: var(--time);
+  font-size: 11px;
+  line-height: 17px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  transition: max-height var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease), padding var(--dur-fast) var(--ease);
+}
 .nav-item {
   position: relative;
   display: flex;
@@ -767,12 +798,14 @@ button:focus-visible {
 
 @media (min-width: 1024px) {
   .nav-collapsed .nav-label { max-width: 0 !important; opacity: 0; }
+  .nav-collapsed .nav-section-label { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
   .nav-collapsed:hover {
     width: 176px;
     box-shadow: var(--shadow-pop);
     z-index: 45;
   }
   .nav-collapsed:hover .nav-label { max-width: 110px !important; opacity: 1 !important; }
+  .nav-collapsed:hover .nav-section-label { max-height: 28px; padding-top: 8px; padding-bottom: 3px; opacity: 1; }
   .nav-collapsed:hover .nav-item { justify-content: flex-start; }
   .nav-collapsed .nav-item:hover::after {
     content: attr(data-tip);
@@ -804,6 +837,16 @@ button:focus-visible {
   .tab-link { padding: 12px 14px; font-size: 15px; }
   .tab-link[data-active="true"]::after { left: 14px; right: 14px; }
   .content-action { margin-left: 16px; }
+  .sidebar-page-shell { padding: 14px 16px 82px; }
+}
+
+@media (max-width: 1023px) {
+  .sidebar-page-shell {
+    width: min(760px, 100%);
+    display: block;
+    padding-top: 24px;
+  }
+  .sidebar-page-main { width: 100%; }
 }
 
 /* ============================================================
@@ -820,6 +863,8 @@ button:focus-visible {
     radial-gradient(1200px 380px at 50% -120px, rgba(23, 114, 246, 0.05), transparent 70%),
     linear-gradient(180deg, #fbfcfe 0%, var(--bg) 260px);
 }
+
+html[data-banner-off="true"] .home-welcome-banner { display: none; }
 
 /* 刘看山欢迎条：极浅蓝底 + 左侧主色细条，克制但有存在感 */
 .kanshan-banner {

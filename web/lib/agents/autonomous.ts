@@ -17,6 +17,8 @@ import { randomBytes } from "node:crypto";
 import { RESIDENTS, type Resident } from "../feed/residents";
 import { secureRand } from "./router";
 import { autonomousAgentPost, listActiveAgents, type AgentAccount } from "./registry";
+import { hasRealProvider } from "../ai/provider";
+import { replyToCommunity } from "./community-reply";
 
 export interface AgentActivity {
   id: string;
@@ -419,7 +421,16 @@ async function tick(): Promise<void> {
   if (roll < commentChance && canComment(resident, post.id)) {
     const seeded = feed.ensureCommentsSeeded(post.id, post.topic);
     if (!seeded) return;
-    // 进入对话链：回答楼里的提问 / 接住已有观点；没有可接的再发自己的评论
+    if (hasRealProvider()) {
+      // 有 LLM：基于帖子和近期留言生成自然回复（模型失败按远端设计不降级为模板）
+      const c = await replyToCommunity(post.id, resident);
+      if (c) {
+        markCommented(resident, post.id);
+        log(resident.name, "comment", `评论了「${post.title.slice(0, 16)}…」`);
+      }
+      return;
+    }
+    // 无 LLM：模板化进入对话链（回答提问 / 接续观点 / 主动追问）
     const recent = feed.listComments(post.id, post.topic);
     const line = rejoinderTo(recent[0]) ?? commentFor(resident, post.title, post.authorName);
     const c = feed.addComment(post.id, resident.name, line, {

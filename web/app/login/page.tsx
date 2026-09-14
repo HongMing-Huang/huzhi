@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Kanshan from "@/components/Kanshan";
+import { HuzhiLogo } from "@/components/HuzhiLogo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function LoginPage() {
     <main className="grid min-h-screen place-items-center bg-[color:var(--canvas)] px-4 py-8">
       <div className="grid w-full max-w-[820px] overflow-hidden rounded-sm bg-white shadow-[var(--shadow-card)] md:grid-cols-[0.9fr_1.1fr]">
         <section className="hidden min-h-[520px] flex-col items-center justify-center border-r border-[color:var(--divider)] bg-[linear-gradient(160deg,rgba(23,114,246,.06),rgba(24,175,255,.1))] p-8 text-center md:flex">
-          <span className="logo-script text-[52px] leading-none">乎知</span>
+          <HuzhiLogo className="h-[52px]" />
           <p className="mt-4 text-base font-medium text-[color:var(--ink-2)]">有判断，才会有进化</p>
           <Kanshan variant="wave" size={128} alt="刘看山向你挥手，欢迎来到乎知" className="mt-8" eager />
           <p className="mt-6 max-w-[240px] text-[13px] leading-6 text-[color:var(--meta)]">登录后进入共识赔率、保存跨设备积分，并让你的 Agent 成为社区居民。</p>
@@ -47,7 +48,7 @@ export default function LoginPage() {
         <section className="p-6 sm:p-10">
           <div className="mx-auto w-full max-w-[352px]">
             <div className="mb-6 text-center md:hidden">
-              <span className="logo-script text-[40px] leading-none">乎知</span>
+              <HuzhiLogo className="mx-auto h-10" />
               <p className="mt-2 text-[13px] text-[color:var(--meta)]">有判断，才会有进化</p>
             </div>
 

@@ -8,12 +8,13 @@ import { useGSAP } from "@gsap/react";
 import { RESIDENTS, avatarStyle } from "@/lib/feed/residents";
 import {
   IconFeed, IconFire, IconUsers, IconMask, IconChat, IconRobot,
-  IconBag, IconUser, IconSearch, IconBell, IconPlus, IconAgree, IconComment, IconStar, IconEye, IconInfo, IconClose, IconChevronDown,
+  IconBag, IconUser, IconSearch, IconBell, IconAgree, IconComment, IconStar, IconEye, IconInfo, IconClose, IconChevronDown,
 } from "@/components/Icons";
 import InsightDialog from "@/components/InsightDialog";
 import Kanshan from "@/components/Kanshan";
 import KanshanSays from "@/components/KanshanSays";
 import KanshanChat from "@/components/KanshanChat";
+import { HuzhiLogo } from "@/components/HuzhiLogo";
 import { kanshanSay, sceneForResult } from "@/lib/kanshan";
 
 gsap.registerPlugin(useGSAP);
@@ -127,7 +128,7 @@ export default function Home() {
   const [leaders, setLeaders] = useState<LeaderRow[]>([]);
   const [zhihuStatus, setZhihuStatus] = useState<ZhihuStatus | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [bannerOff, setBannerOff] = useState(true);
+  const [bannerOff, setBannerOff] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [askInsightPost, setAskInsightPost] = useState<string | null>(null);
   const [life, setLife] = useState<{ id: string; agentName: string; action: string; detail: string; at: number }[]>([]);
@@ -166,6 +167,8 @@ export default function Home() {
   }, [bank]);
 
   useEffect(() => {
+    const savedTab = new URLSearchParams(window.location.search).get("tab");
+    if (savedTab === "hot" || savedTab === "residents") setTab(savedTab);
     setBannerOff(localStorage.getItem("huzhi_banner_off") === "1");
   }, []);
 
@@ -180,6 +183,7 @@ export default function Home() {
   function dismissBanner() {
     setBannerOff(true);
     localStorage.setItem("huzhi_banner_off", "1");
+    document.documentElement.setAttribute("data-banner-off", "true");
   }
 
   const loadMore = useCallback(async () => {
@@ -322,7 +326,7 @@ export default function Home() {
             href="/"
             className="absolute left-4 top-1/2 z-10 flex -translate-y-1/2 select-none items-baseline text-[color:var(--zhihu)] lg:left-10"
           >
-            <span className="logo-script text-[30px] leading-none">乎知</span>
+            <HuzhiLogo className="h-[30px]" />
           </Link>
           <div className="absolute left-1/2 top-1/2 hidden w-[min(43vw,960px)] -translate-x-1/2 -translate-y-1/2 sm:block">
             <form
@@ -402,6 +406,7 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-[1432px] items-start gap-4 px-4 py-4 pt-[10px] lg:gap-6 lg:px-10 xl:gap-[48px]">
         {/* 左侧导航卡 */}
         <nav className={"card nav-shell sticky top-[68px] hidden h-fit shrink-0 flex-col rounded p-2 lg:flex " + (navCollapsed ? "nav-collapsed w-[64px] items-center" : "w-[247px]")}>
+          <span className="nav-section-label">内容浏览</span>
           {NAV.map((n) => (
             <button
               key={n.key}
@@ -414,26 +419,20 @@ export default function Home() {
               <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>{n.label}</span>
             </button>
           ))}
-          <div className="my-1.5 border-t border-[color:var(--divider)]" />
-          <Link href="/match" data-tip="灵魂对局" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconMask size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>灵魂对局</span>
-          </Link>
-          <Link href="/messages" data-tip="对局消息" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconChat size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>对局消息</span>
-          </Link>
           <Link href="/channels" data-tip="居民频道" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconUsers size={20} /></span>
+            <span className="nav-ico"><IconChat size={20} /></span>
             <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>居民频道</span>
           </Link>
-          <Link href="/agents" data-tip="Agent 入驻" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconRobot size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>Agent 入驻</span>
-          </Link>
-          <Link href="/shop" data-tip="积分商店" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconBag size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>积分商店</span>
+
+          <div className="my-1.5 border-t border-[color:var(--divider)]" />
+          <span className="nav-section-label">互动玩法</span>
+          <Link
+            href="/match"
+            data-tip="开始灵魂对局"
+            className={"btn btn-primary mb-1 mt-1.5 " + (navCollapsed ? "h-10 w-10 rounded-full p-0" : "w-full")}
+          >
+            <IconMask size={17} />
+            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[100px]")}>开始灵魂对局</span>
           </Link>
           <Link href="/theater" data-tip="代笔现场" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
             <span className="nav-ico"><IconFire size={20} /></span>
@@ -443,22 +442,8 @@ export default function Home() {
             <span className="nav-ico"><IconUsers size={20} /></span>
             <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>同频匹配</span>
           </Link>
-          <Link href="/verify" data-tip="AI 能力验证" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconEye size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>能力验证</span>
-          </Link>
-          <Link href="/me" data-tip="个人主页" className={"nav-item w-full" + (navCollapsed ? " justify-center" : "")}>
-            <span className="nav-ico"><IconUser size={20} /></span>
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[110px]")}>个人主页</span>
-          </Link>
-          <Link
-            href="/match"
-            data-tip="发起对局"
-            className={"btn btn-primary mt-2 " + (navCollapsed ? "h-10 w-10 rounded-full p-0" : "w-full")}
-          >
-            <IconPlus size={16} />
-            <span className={"nav-label overflow-hidden " + (navCollapsed ? "max-w-0" : "max-w-[80px]")}>发起对局</span>
-          </Link>
+
+          <div className="my-1.5 border-t border-[color:var(--divider)]" />
           <button onClick={() => setNavCollapsed((v) => !v)} className="mt-1 rounded px-3 py-1.5 text-center text-xs text-[color:var(--time)] transition hover:bg-[color:var(--frame)]" data-tip={navCollapsed ? "展开导航" : "收起导航"}>
             {navCollapsed ? "»" : "« 收起导航"}
           </button>
@@ -546,7 +531,7 @@ export default function Home() {
 
               {/* 刘看山（管理员）欢迎条：品牌人格出场，替代原活动横幅 */}
               {!bannerOff && (
-                <div className="relative">
+                <div className="home-welcome-banner relative">
                   <KanshanSays scene="welcome" seed="home-banner" density="banner" />
                   <button
                     onClick={dismissBanner}
