@@ -137,13 +137,13 @@ b, strong { font-weight: var(--w-bold); }
 .page-frame-wide { width: min(1046px, 100%); }
 
 .sidebar-page-shell {
-  width: min(1120px, 100%);
+  width: min(1432px, 100%);
   min-height: calc(100vh - 58px);
   margin: 0 auto;
-  padding: 10px 20px 72px;
+  padding: 10px 40px 72px;
   display: flex;
   align-items: flex-start;
-  gap: 22px;
+  gap: 24px;
 }
 .sidebar-page-main {
   width: min(760px, 100%);
@@ -847,6 +847,10 @@ button:focus-visible {
     padding-top: 24px;
   }
   .sidebar-page-main { width: 100%; }
+}
+
+@media (min-width: 1280px) {
+  .sidebar-page-shell { gap: 48px; }
 }
 
 /* ============================================================
