@@ -8,6 +8,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/lib/game/types";
 
+/** 表情面板：刘看山系 + 常用（聊天能发表情，对局更像真人） */
+const KANSHAN_EMOJI = ["🦊", "❄️", "🧊", "👀", "😌", "🙃", "📣", "💬", "🎣", "🥶"];
+const COMMON_EMOJI = ["😂", "😅", "😭", "😐", "🤔", "👍", "🔥", "❤️", "🍉", "☕", "🙏", "🥹"];
+
 function fmtTime(ts: number): string {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -37,7 +41,9 @@ export default function ChatWindow({
   heightClass?: string;
 }) {
   const [input, setInput] = useState("");
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -137,7 +143,39 @@ export default function ChatWindow({
             send();
           }}
         >
+          {/* 表情按钮 */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setEmojiOpen((v) => !v)}
+              aria-label="发表情"
+              disabled={disabled}
+              className="grid h-11 w-11 place-items-center rounded-full border border-[color:var(--line)] bg-[color:var(--bg)] text-lg transition hover:border-[color:var(--zhihu)] disabled:opacity-40"
+            >
+              😊
+            </button>
+            {emojiOpen && !disabled && (
+              <>
+                <div className="absolute bottom-full right-0 z-20 mb-2 w-64 rounded-xl border border-[color:var(--line)] bg-white p-3 shadow-[0_10px_40px_rgba(0,0,0,.14)]">
+                  <p className="text-[11px] text-[color:var(--time)]">刘看山系</p>
+                  <div className="mt-1 grid grid-cols-5 gap-1">
+                    {KANSHAN_EMOJI.map((e) => (
+                      <button key={e} type="button" onClick={() => { setInput((v) => v + e); inputRef.current?.focus(); }} className="rounded p-1 text-xl transition hover:bg-[color:var(--frame)]">{e}</button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[11px] text-[color:var(--time)]">常用</p>
+                  <div className="mt-1 grid grid-cols-5 gap-1">
+                    {COMMON_EMOJI.map((e) => (
+                      <button key={e} type="button" onClick={() => { setInput((v) => v + e); inputRef.current?.focus(); }} className="rounded p-1 text-xl transition hover:bg-[color:var(--frame)]">{e}</button>
+                    ))}
+                  </div>
+                </div>
+                <button aria-hidden className="fixed inset-0 z-10" onClick={() => setEmojiOpen(false)} />
+              </>
+            )}
+          </div>
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             maxLength={500}

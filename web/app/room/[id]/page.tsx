@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import ChatWindow from "@/components/ChatWindow";
 import { personaById } from "@/lib/ai/personas";
+import Kanshan from "@/components/Kanshan";
 import { IconMask, IconRobot, IconUser as IconUserIco, IconSearch as IconSearchIco } from "@/components/Icons";
 import { AppHeader, SidebarPage } from "@/components/AppChrome";
 import type { ClientRoom, GuessKind } from "@/lib/game/types";
@@ -308,12 +309,23 @@ export default function RoomPage() {
       {data.phase === "reveal" && data.reveal && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4">
           <div className="card fade-up w-full max-w-lg max-h-[88vh] overflow-auto p-6" style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
-            <h2 className="display text-center text-2xl text-[color:var(--zhihu)]">开牌！</h2>
-            <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="flex items-center justify-center gap-2 text-[color:var(--time)]">
+              <Kanshan variant="idle" size={64} decorative className="!h-7 !w-7" />
+              <span className="text-xs">裁判结算中 · 刘看山</span>
+            </div>
+            <h2 className="display mt-1 text-center text-[28px] font-semibold text-[color:var(--ink)]">开牌</h2>
+            <div className="mt-3 grid grid-cols-2 gap-3">
               {data.reveal.entries.map((e, i) => {
                 const mine = e.playerId === me.id;
+                const win = e.points > 0; // +分即为本局赢家，卡片高亮
                 return (
-                  <div key={e.playerId} className="flip-open rounded border border-[color:var(--line)] bg-[color:var(--bg)] p-4 text-sm" style={{ animationDelay: `${i * 0.18}s` }}>
+                  <div
+                    key={e.playerId}
+                    className={`flip-open rounded border p-4 text-sm ${
+                      win ? "border-[rgba(103,194,58,.4)] bg-[rgba(103,194,58,.06)]" : "border-[color:var(--line)] bg-[color:var(--bg)]"
+                    }`}
+                    style={{ animationDelay: `${i * 0.18}s` }}
+                  >
                     <p className="text-xs text-[color:var(--meta)]">{mine ? "你" : e.name} 的真身</p>
                     <p className="display mt-1 text-lg">
                       {IDENTITY_META[e.identity].icon} {IDENTITY_META[e.identity].label}

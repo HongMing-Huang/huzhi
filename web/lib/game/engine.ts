@@ -97,6 +97,13 @@ export async function addUserMessage(room: Room, playerId: string, text: string)
     return;
   }
   botMaybeLock(room, bot);
+  // 不是条条秒回：约 30% 的消息 bot 选择"已读，等下一句"（真人也会这样），
+  // 避免"我发一句他立刻回一句"的机械感让人一眼识破。回合仍按消息数累积，
+  // 玩家连发或 bot 沉默都不会卡死（沉默概率 <1，对局必然能聊满 2 轮）。
+  if (Math.random() < 0.3) {
+    store.set(room);
+    return;
+  }
   const reply = await botReply(room, bot, room.round);
   room.messages.push(reply);
   if (room.phase === "chat" && bot.guess && room.players[0].guess) {
