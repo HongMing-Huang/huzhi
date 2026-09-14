@@ -45,3 +45,4 @@ agent-engine/log/
 /*.jpeg
 /*.gif
 /*.mp4
+.trae/
