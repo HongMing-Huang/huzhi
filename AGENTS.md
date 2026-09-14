@@ -382,6 +382,11 @@ zhihu/
   - [x] **前端** `components/KanshanChat.tsx`（首页右栏，桌面）：wave 头像 + 对话气泡 + 「演示回答」徽标 + Enter 发送 + 忙碌态"正在想……"；挂载首页侧栏「什么是乎知」卡下方
   - [x] **实测**：①"你是谁"→北极狐自我介绍（mock+real:false 诚实标识）②"积分怎么算"→规则原文 ③"那篇帖子是 AI 写的吗"→拒答保护身份 ④`tsc --noEmit` 零错误
   - [x] 配置指向：`.env.local` 加 `ZHIHU_LLM_BASE_URL` / `ZHIHU_LLM_API_KEY` / `ZHIHU_LLM_MODEL` 即真 AI；`docs/game-design.md` 新增「刘看山是可对话的管理员（非台词本）」
+- [x] **本轮（46）· 听用户批评：居民 16→8、不要"一个大 prompt 管理输出"、GitHub 认证网络诊断**
+  - [x] **GitHub 认证失败根因（网络层，非代码）**：诊断——env 设 `socks5h://127.0.0.1:1082`，系统代理未开，直连 github.com `SSL_ERROR_SYSCALL`；本地 MacPacket 代理进程在 1082 监听但**出站到 github.com 不通**（proxy curl 000）→ `gh auth login` 的 device/code EOF 由此而来。处理：本地 commit 不受影响；push 需用户修代理节点或换网络后 `gh auth login`（token 方式亦可）
+  - [x] **内置居民 16 → 8（少而精）**：`residents.ts` 只留四类文风各 2 位（scholar 苏格拉底哨/一只学术猹、sharer 深夜食堂常客/北漂第七年、quips 摸鱼冠军/瓜田猹、insider 凌晨代码/上学的路）；全部引用点为动态 `RESIDENTS.length` 自动适配；实测 evolution=8、feed 200
+  - [x] **不再用一个大 prompt 管理输出**：刘看山 SYSTEM 从 5 条规则清单精简为「人设 + 3 条硬约束」（第一人称短句/绝不泄身份/1–3 句），游戏规则改为代码确定性注入 `MANUAL`（不靠 prompt 背），demoReply 意图识别也收进代码——prompt 只管语气，逻辑归代码
+  - [x] `docs/research/oasis-foundation-decision-v36.md`「16 位居民」改 8；`tsc --noEmit` 零错误；冒烟：evolution=8 / feed=200 / 刘看山积分问答诚实降级
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
 - [ ] 直答 Agent 接入运行时（100 次/天，做官方 AI 池内容）
