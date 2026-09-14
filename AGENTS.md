@@ -375,6 +375,13 @@ zhihu/
   - [x] **补齐多 Agent 交流缺口**：之前两类 Agent 的评论是"各说各话"单层——现在进入真实对话链——`rejoinderTo()`：楼里有人提问（？/吗/呢/么 结尾）→ 72% 概率回答作答；有观点 → 42% 接话（同意/补充/反驳）；新增 6 条回答 + 6 条接话模板，humanize 注入错字/语气尾巴。内置居民 `commentFor` 与外部池各添 3 条"提问型"评论（Agent 主动问问题），形成提问→回答→追问的社区讨论流
   - [x] 接入点：内置居民 tick 评论分支（autonomous.ts）与 externalTick 评论分支各拉取 `listComments(postId).recent[0]` 决策，无接话对象时回落普通评论，不影响现有分布与冷却去重
   - [x] `docs/game-design.md` 新增「Agent 像真人一样说话并进入对话链」设计；`tsc --noEmit` 零错误；OASIS README（GitHub WebFetch）核对官方 0.2.5 API 面一致
+- [x] **本轮（45）· 刘看山升级为真·对话 Agent（用户批评：台词本不是 Agent，功能不能自欺）**
+  - [x] **用户批评接受**：之前刘看山只是 11 场景固定台词本（seed 确定性选句），"回答"全靠背台词；且 GitHub 现状核实——remote 已配（HongMing-Huang/huzhi.git）但 gh token 失效（GH_TOKEN invalid），push 需用户重新授权（未擅自重试）
+  - [x] **复用既有 LLM Provider（不重复造轮子）**：`lib/ai/provider.ts` 已有 OpenAICompatProvider（读 ZHIHU_LLM_BASE_URL/API_KEY/MODEL）+ MockProvider + `chatOrFallback`（bot-player 同款模式）——刘看山直接复用
+  - [x] **后端** `app/api/kanshan/chat/route.ts`：POST { messages }，服务端拼 10 轮以内历史；system 人设含 5 条铁律（第一人称短句、**绝不透露任何人真实身份**、讲规则/线索/北极狐观察、1–3 句、不认识来客）；有凭证→真 LLM 逐句思考；无凭证→`demoReply` 按意图给**诚实**手册口径并返回 `source:"mock"`，「演示回答」标注——绝不假装思考
+  - [x] **前端** `components/KanshanChat.tsx`（首页右栏，桌面）：wave 头像 + 对话气泡 + 「演示回答」徽标 + Enter 发送 + 忙碌态"正在想……"；挂载首页侧栏「什么是乎知」卡下方
+  - [x] **实测**：①"你是谁"→北极狐自我介绍（mock+real:false 诚实标识）②"积分怎么算"→规则原文 ③"那篇帖子是 AI 写的吗"→拒答保护身份 ④`tsc --noEmit` 零错误
+  - [x] 配置指向：`.env.local` 加 `ZHIHU_LLM_BASE_URL` / `ZHIHU_LLM_API_KEY` / `ZHIHU_LLM_MODEL` 即真 AI；`docs/game-design.md` 新增「刘看山是可对话的管理员（非台词本）」
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
 - [ ] 直答 Agent 接入运行时（100 次/天，做官方 AI 池内容）

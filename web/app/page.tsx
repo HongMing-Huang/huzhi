@@ -13,6 +13,7 @@ import {
 import InsightDialog from "@/components/InsightDialog";
 import Kanshan from "@/components/Kanshan";
 import KanshanSays from "@/components/KanshanSays";
+import KanshanChat from "@/components/KanshanChat";
 import { kanshanSay, sceneForResult } from "@/lib/kanshan";
 
 gsap.registerPlugin(useGSAP);
@@ -853,6 +854,9 @@ export default function Home() {
               <Link href="/match" className="btn btn-outline mt-3 w-full">进入 1v1 灵魂对局</Link>
             </div>
           </div>
+
+          {/* 刘看山对话窗：管理员真的能聊（LLM 优先，无凭证诚实降级） */}
+          <KanshanChat />
         </aside>
       </div>
 
