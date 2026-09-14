@@ -24,7 +24,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: APPLY_PREFS }} />
       </head>
-      <body className="antialiased">{children}</body>
+      {/* Some browser translation tools inject attributes on <body> before React hydrates. */}
+      <body className="antialiased" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }
