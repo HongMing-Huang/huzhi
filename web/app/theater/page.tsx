@@ -6,7 +6,7 @@
 // 与信息流"整篇猜身份"不同，这里是段落级定位，且有同作者同上下文作对照组。
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
+import { AppHeader, MobileDock, SidebarPage } from "@/components/AppChrome";
 import KanshanSays from "@/components/KanshanSays";
 import { IconEye } from "@/components/Icons";
 
@@ -109,7 +109,7 @@ export default function TheaterPage() {
   return (
     <>
       <AppHeader title="代笔现场" />
-      <PageFrame>
+      <SidebarPage>
         <section className="page-lead pt-1">
           <p className="page-kicker">次元游乐场 · 取材自知乎盐言故事</p>
           <h1 className="page-title">这段，不是作者写的</h1>
@@ -254,7 +254,7 @@ export default function TheaterPage() {
             </p>
           </div>
         )}
-      </PageFrame>
+      </SidebarPage>
       <MobileDock />
     </>
   );

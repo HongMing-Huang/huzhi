@@ -6,7 +6,7 @@ import Link from "next/link";
 import ChatWindow from "@/components/ChatWindow";
 import { personaById } from "@/lib/ai/personas";
 import { IconMask, IconRobot, IconUser as IconUserIco, IconSearch as IconSearchIco } from "@/components/Icons";
-import { AppHeader } from "@/components/AppChrome";
+import { AppHeader, SidebarPage } from "@/components/AppChrome";
 import type { ClientRoom, GuessKind } from "@/lib/game/types";
 
 interface Clue {
@@ -56,6 +56,11 @@ export default function RoomPage() {
     setPid(stored);
   }, [id]);
 
+  // Next.js 可能在不同房间之间复用页面实例；每个新房间都必须重新确认任务。
+  useEffect(() => {
+    setShowMission(true);
+  }, [id]);
+
   useEffect(() => {
     if (!pid) return;
     fetchState();
@@ -76,13 +81,6 @@ export default function RoomPage() {
       if (fallback) clearInterval(fallback);
     };
   }, [pid, fetchState]);
-
-  useEffect(() => {
-    if (!data?.roomId) return;
-    setShowMission(true);
-    const timer = setTimeout(() => setShowMission(false), 1800);
-    return () => clearTimeout(timer);
-  }, [data?.roomId]);
 
   async function post(path: string, body: Record<string, unknown>) {
     setBusy(true);
@@ -139,11 +137,11 @@ export default function RoomPage() {
 
   if (fatal) {
     return (
-      <><AppHeader title="灵魂对局" /><main className="page-frame grid place-items-center text-center"><div><h1 className="text-lg font-medium">这场对局已经结束</h1><p className="mt-2 text-sm text-[color:var(--meta)]">{fatal}</p><Link href="/match" className="btn btn-primary mt-5 inline-block px-6 py-2.5">重新开一局</Link></div></main></>
+      <><AppHeader title="灵魂对局" /><SidebarPage><div className="grid min-h-[60vh] place-items-center text-center"><div><h1 className="text-lg font-medium">这场对局已经结束</h1><p className="mt-2 text-sm text-[color:var(--meta)]">{fatal}</p><Link href="/match" className="btn btn-primary mt-5 inline-block px-6 py-2.5">重新开一局</Link></div></div></SidebarPage></>
     );
   }
   if (!data) {
-    return <><AppHeader title="灵魂对局" /><main className="page-frame"><div className="space-y-4 py-5" aria-label="对局装载中"><div className="skeleton h-4 w-full" /><div className="skeleton h-[320px] w-full" /><div className="skeleton h-20 w-full" /></div></main></>;
+    return <><AppHeader title="灵魂对局" /><SidebarPage><div className="space-y-4 py-5" aria-label="对局装载中"><div className="skeleton h-4 w-full" /><div className="skeleton h-[320px] w-full" /><div className="skeleton h-20 w-full" /></div></SidebarPage></>;
   }
 
   const me = data.you;
@@ -165,8 +163,9 @@ export default function RoomPage() {
           </button>
         </div>
       } />
+      <SidebarPage>
       {/* 对局话题：完整展示，不再塞进顶栏被截断 */}
-      <div className="mx-auto max-w-[760px] px-5 pt-4">
+      <div className="pt-4">
         <p className="text-[13px] text-[color:var(--time)]">本局话题</p>
         <h1 className="mt-1 text-[17px] font-medium leading-[26px] text-[color:var(--ink)]">
           {data.topic.title}
@@ -185,7 +184,7 @@ export default function RoomPage() {
 
       {/* 轮次进度：光有色条读者不知道在表示什么，补一句说明 */}
       <div
-        className="mx-auto mt-3 max-w-[760px] px-5"
+        className="mt-3"
         aria-label={`第 ${data.round} 轮，共 ${data.maxRounds} 轮`}
       >
         <div className="flex items-center gap-2">
@@ -207,7 +206,7 @@ export default function RoomPage() {
               : "对话进度 · 现在可以锁定判断并下注"}
         </p>
       </div>
-      <main className="mx-auto max-w-[760px] px-5 pb-10">
+      <div className="pb-10">
 
       {/* 聊天窗口（新设计） */}
       <ChatWindow
@@ -342,12 +341,12 @@ export default function RoomPage() {
         </div>
       )}
 
-      {/* 任务只在入场短暂浮现；双方常驻界面完全相同，避免按钮或色彩泄露身份。 */}
+      {/* 任务在入场时显示，用户确认后关闭；双方弹窗结构相同，避免交互泄露身份。 */}
       {showMission && data.phase === "chat" && (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-black/25 p-4" onClick={() => setShowMission(false)}>
-          <section className="card fade-up w-full max-w-md p-6 text-center shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-40 grid place-items-center bg-black/25 p-4" role="presentation">
+          <section className="card fade-up w-full max-w-md p-6 text-center shadow-xl" role="dialog" aria-modal="true" aria-labelledby="mission-title">
             <p className="text-xs font-medium tracking-wide text-[color:var(--time)]">本局秘密任务</p>
-            <h1 className="mt-2 text-2xl font-medium text-[color:var(--ink)]">
+            <h1 id="mission-title" className="mt-2 text-2xl font-medium text-[color:var(--ink)]">
               {disguised ? "伪装成 AI，别被看穿" : "判断对面到底是谁"}
             </h1>
             {disguised && persona && (
@@ -358,13 +357,14 @@ export default function RoomPage() {
                 ? "不要自曝。让对面确信你是机器，聊满两轮后再下注。"
                 : "对面可能是真人、AI，或正在伪装 AI 的真人。只凭对话下注。"}
             </p>
-            <div className="mx-auto mt-5 h-1 w-24 overflow-hidden rounded-full bg-[color:var(--frame)]">
-              <span className="mission-timer block h-full bg-[color:var(--zhihu)]" />
-            </div>
+            <button type="button" className="btn btn-primary mt-5" onClick={() => setShowMission(false)}>
+              我知道啦
+            </button>
           </section>
         </div>
       )}
-      </main>
+      </div>
+      </SidebarPage>
     </>
   );
 }

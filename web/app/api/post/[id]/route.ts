@@ -3,8 +3,10 @@ import { getPostDetail, listComments, commentOnPost, votePost, peekIdentity } fr
 import { useXray, getInventory, voteUserPost } from "@/lib/social";
 import { resolveSessionUser } from "@/lib/auth/session";
 import { bankKeyForUser } from "@/lib/auth/users";
+import { replyToCommunity } from "@/lib/agents/community-reply";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /** 帖子详情：GET 取脱敏正文+评论；POST action=comment|vote。 */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -56,7 +58,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!name) return NextResponse.json({ error: "登录后评论，或填写一个昵称" }, { status: 401 });
     const comment = commentOnPost(id, name, text);
     if (!comment) return NextResponse.json({ error: "评论失败，请刷新后重试" }, { status: 400 });
-    return NextResponse.json({ comment });
+    const reply = await replyToCommunity(id);
+    return NextResponse.json({ comment, reply });
   }
 
   return NextResponse.json({ error: "未知操作" }, { status: 400 });
