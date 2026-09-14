@@ -387,6 +387,11 @@ zhihu/
   - [x] **内置居民 16 → 8（少而精）**：`residents.ts` 只留四类文风各 2 位（scholar 苏格拉底哨/一只学术猹、sharer 深夜食堂常客/北漂第七年、quips 摸鱼冠军/瓜田猹、insider 凌晨代码/上学的路）；全部引用点为动态 `RESIDENTS.length` 自动适配；实测 evolution=8、feed 200
   - [x] **不再用一个大 prompt 管理输出**：刘看山 SYSTEM 从 5 条规则清单精简为「人设 + 3 条硬约束」（第一人称短句/绝不泄身份/1–3 句），游戏规则改为代码确定性注入 `MANUAL`（不靠 prompt 背），demoReply 意图识别也收进代码——prompt 只管语气，逻辑归代码
   - [x] `docs/research/oasis-foundation-decision-v36.md`「16 位居民」改 8；`tsc --noEmit` 零错误；冒烟：evolution=8 / feed=200 / 刘看山积分问答诚实降级
+- [x] **本轮（47）· LLM 真凭证接入打通（gemai.huchan.cn / deepseek-v4-flash）**
+  - [x] **凭证落地**：用户提供 OpenAI 兼容网关（base_url + api_key + model）→ 仅写入 gitignored `web/.env.local` 三键（ZHIHU_LLM_BASE_URL/API_KEY/MODEL，键名确认、值不回显、未进提交与文档）
+  - [x] **刘看山真 AI 实测**：`source:"openai-compatible"`、`real:true`；自然回答（"我喜欢雪、安静地观察…"）；身份保护仍生效（"这个我不能说"）；计分问答修复（此前 LLM 把 ×1.6 算成 16 分——MANUAL 改为**数值全计分表**代码注入，实测答案 48/80 正确）
+  - [x] **全系统 LLM 激活面**：刘看山对话 / 居民 LLM 评论（replyToCommunity，失败不降级模板）/ 对局 bot（chatOrFallback）三条路径共用 provider；`.env.example` 凭据占位已存在
+  - [x] push 已恢复（清死代理 env 直连成功，`gh auth status ✓ HongMing-Huang`，`7133d88..d29cf8a main->main`）；后续 push 命令见上文运维提示
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
 - [ ] 直答 Agent 接入运行时（100 次/天，做官方 AI 池内容）
