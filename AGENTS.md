@@ -404,8 +404,24 @@ zhihu/
   - [x] **OAuth 就绪核对**：`ZHIHU_OAUTH_APP_ID/APP_KEY` 环境变量 + `/api/auth/zhihu/callback` 已实现；回调地址待部署域名后填
   - [x] 部署提醒（国内流畅）：本地 build+next start 或国内平台；上线前必须完成 Supabase/Upstash 迁移（只读文件系统会静默丢 JSON）
   - [x] 待用户动作：提交页填表（名称/赛道/链接/回调/计划书/封面）、拿 OAuth 秘钥、部署平台登录；演示视频选交可帮我用 GenerateVideo 制作
+- [x] **本轮（50）· 三 Agent 全栈只读审计（架构 / 后端 / 前端交互与动效）**
+  - [x] 运行证据：14 个主要页面当前均 HTTP 200；`npm run typecheck`、OASIS 版本验证、5 项桥接测试、两居民社交世界断言全部通过
+  - [x] 架构结论：OASIS 包、ManualAction/LLMAction、动作转发均真实；但网页无自动 `/auto` 调度、乎知内容未进入 OASIS Recsys、多 profile 共用一个产品 Agent Key，故不能宣称 OASIS 已掌管整个社区
+  - [x] 后端 P0：JSON/globalThis 不支持多实例；room pid 可冒充玩家；代笔现场可重复刷分；积分下注无 escrow/事务，商店/签到/共识池缺原子性和幂等
+  - [x] 前端 P0/P1：移动搜索无提交、关注等假按钮、点赞/猜测静默失败、同频 CTA 未定向、首页与共享导航分叉、room busy 误报对手输入
+  - [x] 动效结论：GSAP/Three/刘看山素材均真实接入且有 DPR/离屏/清理/reduced-motion；但 WebGL 无失败降级、3D 数据部分硬编码、GIF 不服从减少动效
+  - [x] 文档结论：OASIS 定稿文档仍写“仅研究不实施”且部分旧审计事实已过期；Supabase DDL 落后当前 scope/止损券/账本/记忆类型，不能直接上线
+  - [x] 当前运行态：网页与真实 LLM 网关正常，但 OASIS sidecar 未连接，`/api/agents/runtime` 明确返回 local-fallback；不能把“代码支持”表述成“演示正在运行”
+- [x] **本轮（51）· 提交冲刺：官方要求实读核对 + 部署链路端到端验证 + 国内可用决策（用户指令：保证跑通、完成检查部署、Vercel 国内可用问题）**
+  - [x] **lark-cli 实读两份官方文档**（参赛者开发流程 wiki + 开发者手册 docx，均为 200）：新发现三项硬要求——①**网页类有登录功能必须同步提供评委测试账号密码**（之前文档没提）②OAuth 登录数计最佳人气奖，提交页分配 APP_ID/APP_KEY、用 OAuth 则回调地址必填 ③人气奖=9.13–9.23 想法点赞+使用量+评论量 → 必须尽早提交占位；初审权重：AI 场景价值 40%/创新 25%/完成度 25%/体验 10%
+  - [x] **Docker 部署链路本地全验证**（承接并行工作流的 web/Dockerfile + standalone + DATA_DIR 改动）：镜像构建成功（node:22-alpine 三阶段 + npmmirror）；容器冒烟——首页/feed 200、注册 200 落卷（users/sessions.json 进挂载卷）、**docker restart 后重新登录 200**（持久化实测通过）；测试容器与卷已清理
+  - [x] **国内可用决策（回答“Vercel 怎么保证国内”）**：`*.vercel.app` 大陆 DNS 污染基本不可达，绝不能作提交链接；绑自定义域名后大概率可用但无保证；**主提交链接定稿 = Docker 镜像 + 持久卷香港区容器平台（ClawCloud/Zeabur）**——零代码改动、常驻容器里 Agent 自主生活真实运转、大陆直连；Vercel 降为备用（须先接 Upstash，未实施，如实标注）
+  - [x] **DEPLOY.md 重写 v51**：官方提交要求对照表（测试账号/仓库公开/OAuth/人气奖时间线）、三条路线决策矩阵、Zeabur/ClawCloud 双方式步骤、环境变量表（补 ZHIHU_LLM_* 三键）、评委路径 10 步自检、仓库转公开命令（当前 private，评委打不开=加分项归零）
+  - [x] 仓库状态：本轮部署改动（Dockerfile/.dockerignore/db.ts DATA_DIR/next.config standalone）+ 审计记录 + DEPLOY v51 已提交推送；`tsc --noEmit` 零错误
+  - [x] **Mimosa 安全门拦截提交 → 4 处发现全部处置（架构级修复）**：①Web→sidecar 主动探测整体废除，改为 **sidecar 5s push 心跳**（POST /api/agents/runtime；`lib/agents/sidecar-heartbeat.ts` globalThis 存新鲜度，Web 端对 sidecar **零出站请求=零 SSRF 面**）；本地兜底循环只在「心跳在线 **且** autonomy=true」时让位——同步修复审计 50 轮“健康但停摆”缺陷；可选 `OASIS_SIDECAR_TOKEN` 心跳令牌，`OASIS_ENGINE_URL` 退役 ②`huzhi_bridge.py` 出站三重校验：协议/凭据 + 解析 IP 边界（私网/环回默认拒绝，`HUZHI_ALLOW_PRIVATE_TARGET=1` 显式本地伴生模式）+ 请求前重解析求交防 DNS rebinding、不跟随重定向；心跳 `post_runtime_status` 与动作转发共用同一边界 ③kindred 中危判定为误报（知乎客户端固定官方域名+路径白名单+searchParams 编码，用户数据只进查询参数不变更主机）④`.env.example` 双端同步；验证：tsc 零错误、py_compile 通过、桥接契约测试 5/5
+  - [ ] 待用户动作（今晚完成，明早 10:00 截止）：容器平台建服务（Git 构建 root=web 或推 ghcr 镜像）→ 配 env（ZHIHU_ACCESS_SECRET + LLM 三键 + OAuth 二键）→ 挂卷 /app/.data → 跑自检清单 → 注册评委测试账号 → **仓库转公开** → 提交页填表发布
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
-- [ ] 公网部署（DEPLOY.md 就绪；`npx vercel login` 需用户本人授权，用户暂缓）
+- [ ] 公网部署（**DEPLOY.md v51 定稿：主链接走 Docker+持久卷香港容器平台，镜像构建与持久化冒烟已本地验证**；平台账号注册与部署授权需用户本人操作，约 30 分钟）
 - [ ] 道具商店（伪装道具/侦探工具/反套路）接入对局
 - [ ] 多人房（狼人杀式）模式；Agent 参与 1v1 对局（scope 已预留）
 - [ ] 部署公网 Demo + 建代码仓库 + 产品说明计划书 + 演示视频（9/13 10:00 – 9/15 10:00 提交窗口，建议 9/13 尽早占位）

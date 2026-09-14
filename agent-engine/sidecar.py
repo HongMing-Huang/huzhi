@@ -22,7 +22,7 @@ from camel.types import ModelType
 from oasis import ActionType, LLMAction, ManualAction, generate_reddit_agent_graph
 import oasis
 
-from huzhi_bridge import HuzhiBridge
+from huzhi_bridge import HuzhiBridge, post_runtime_status
 
 
 ALLOWED = {
@@ -47,9 +47,30 @@ class Runtime:
         self.autonomy_enabled = False
         self.post_ids: dict[int, str] = {}
         self.bridge = None
-        if os.getenv("HUZHI_BASE_URL") and os.getenv("HUZHI_AGENT_KEY"):
-            self.bridge = HuzhiBridge(os.environ["HUZHI_BASE_URL"], os.environ["HUZHI_AGENT_KEY"])
+        huzhi_base = os.getenv("HUZHI_BASE_URL")
+        if huzhi_base and os.getenv("HUZHI_AGENT_KEY"):
+            self.bridge = HuzhiBridge(huzhi_base, os.environ["HUZHI_AGENT_KEY"])
+        # 心跳（push 模型）：Web 端不再探测 sidecar，由这里每 5s 主动上报。
+        # 只要配了 HUZHI_BASE_URL 就发（不需要 Key）；只有 autonomy=True 时
+        # Web 端才会让位给 OASIS 行为引擎，否则保留本地兜底循环。
+        self._heartbeat: threading.Timer | None = None
+        if huzhi_base:
+            self._start_heartbeat(huzhi_base)
         asyncio.run_coroutine_threadsafe(self._start(), self.loop).result(timeout=30)
+
+    def _start_heartbeat(self, base_url: str) -> None:
+        token = os.getenv("OASIS_SIDECAR_TOKEN")
+
+        def beat() -> None:
+            try:
+                post_runtime_status(base_url, self.health(), token=token)
+            except Exception:
+                pass  # 心跳失败不打扰主流程；Web 端按心跳新鲜度自动降级
+            self._heartbeat = threading.Timer(5.0, beat)
+            self._heartbeat.daemon = True
+            self._heartbeat.start()
+
+        beat()
 
     async def _start(self) -> None:
         profile_path = os.getenv(
@@ -206,6 +227,9 @@ class Runtime:
         }
 
     def close(self) -> None:
+        if self._heartbeat is not None:
+            self._heartbeat.cancel()
+            self._heartbeat = None
         if self.env is not None:
             asyncio.run_coroutine_threadsafe(self.env.close(), self.loop).result(timeout=10)
         self.loop.call_soon_threadsafe(self.loop.stop)

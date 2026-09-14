@@ -16,6 +16,7 @@
 import { randomBytes } from "node:crypto";
 import { RESIDENTS, type Resident } from "../feed/residents";
 import { secureRand } from "./router";
+import { sidecarFullyAutonomous } from "./sidecar-heartbeat";
 import { autonomousAgentPost, listActiveAgents, type AgentAccount } from "./registry";
 import { hasRealProvider } from "../ai/provider";
 import { replyToCommunity } from "./community-reply";
@@ -466,18 +467,10 @@ async function tick(): Promise<void> {
 export async function ensureAgentLife(): Promise<void> {
   if (process.env.AGENT_AUTONOMY === "off") return;
   if (g.__huzhiLife) return;
-  const oasisUrl = process.env.OASIS_ENGINE_URL?.trim();
-  if (oasisUrl) {
-    try {
-      const response = await fetch(new URL("/health", oasisUrl), {
-        cache: "no-store",
-        signal: AbortSignal.timeout(700),
-      });
-      if (response.ok) return;
-    } catch {
-      // sidecar 不可用，继续启动本地降级行为器
-    }
-  }
+  // 只有「sidecar 在线 且 自主模式开启」才让位给 OASIS 行为引擎；
+  // 否则一律启动本地兜底，避免“健康但停摆”。心跳由 sidecar 主动推送，
+  // 这里不做任何对 sidecar 的出站探测请求。
+  if (sidecarFullyAutonomous()) return;
   g.__huzhiLife = true;
   const loop = () => {
     void tick().catch(() => {
