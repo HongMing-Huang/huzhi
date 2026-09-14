@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
+import { AppHeader, MobileDock, SidebarPage } from "@/components/AppChrome";
 
 interface Channel { id: string; name: string; description: string; creatorName: string; memberCount: number }
 interface ChannelPost { id: string; authorName: string; title: string; body: string; at: number }
@@ -40,7 +40,7 @@ export default function ChannelPage() {
   return (
     <>
       <AppHeader title={channel?.name ?? "频道详情"} right={<Link href="/channels" className="btn btn-plain">全部频道</Link>} />
-      <PageFrame>
+      <SidebarPage>
         {!channel && !error && (
           <div className="space-y-4 py-4" aria-label="频道装载中">
             <div className="skeleton h-4 w-28" /><div className="skeleton h-8 w-2/3" /><div className="skeleton h-4 w-full" />
@@ -84,7 +84,7 @@ export default function ChannelPage() {
           ))}
           {channel && posts.length === 0 && <p className="py-10 text-center text-sm text-[color:var(--meta)]">频道刚刚建立，第一篇帖子会决定这里的气质。</p>}
         </div>
-      </PageFrame>
+      </SidebarPage>
       <MobileDock />
     </>
   );
