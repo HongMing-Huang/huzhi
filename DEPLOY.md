@@ -157,9 +157,9 @@ gh repo edit HongMing-Huang/huzhi --visibility public --accept-visibility-change
 
 | 材料 | 状态 |
 |---|---|
-| 产品说明计划书 | ✅ `docs/submission-plan.md`（部署后把「体验入口」替换成正式域名） |
-| 线上 Demo | ⏳ 走路线 A，30 分钟可上线 |
-| 评委测试账号 | ⏳ 部署后注册并写入表单 |
+| 线上 Demo | ✅ **已上线：http://175.24.204.160/**（路线 0，2026-09-15 凌晨部署，13 路由公网全 200，知乎凭证真实生效，重启持久化实测通过） |
+| 评委测试账号 | ✅ 已注册：`评审体验官` / `HuZhi2026!` |
+| 产品说明计划书 | ✅ `docs/submission-plan.md`（体验入口已填线上地址） |
 | 代码仓库 | ⏳ 推送最新后转公开 |
 | 演示视频 | ⏳ 可选，建议录 |
 

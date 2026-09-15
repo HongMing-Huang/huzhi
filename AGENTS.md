@@ -433,6 +433,13 @@ zhihu/
   - [x] 新增 `deploy/compose.yml` + `deploy/.env.server.example`（凭据模板，`.env.server` 已 gitignore）：4 条命令完成服务器部署；**本地 compose 全链路实测通过**——构建→起服→首页/feed 200→注册 200→**容器重启后重登 200**
   - [x] DEPLOY.md 重构：路线 0（保证）置顶，A（香港容器）/B（Vercel+Upstash）/C（裸跑不可用）分层如实标注；含 2G 内存构建 OOM 的 docker save/scp/load 替代路径
   - [x] 提交并推送；诚实口径：IP 直访为 HTTP 无 TLS（浏览器“不安全”提示属正常），OAuth 回调可填 IP
+- [x] **本轮（54）· 线上 Demo 已部署上线（用户授权 SSH 操控腾讯云服务器，2026-09-15 凌晨）**
+  - [x] 服务器：腾讯云 ubuntu@175.24.204.160（Ubuntu 24.04 / 2G 内存 / 50G 盘）——用户追加本机公钥后接通；`apt docker.io`（29.1.3）+ 2G swap 就绪
+  - [x] **踩坑与修复：本机 Apple Silicon 构建的 arm64 镜像在 amd64 服务器 `exec format error` 崩溃循环** → `docker build --platform linux/amd64` 交叉重建后 `docker save|gzip|ssh load` 推送，绕开 2G 内存构建 OOM 风险；容器重启策略 unless-stopped + 数据卷 huzhi-data
+  - [x] **线上验收全绿**：http://175.24.204.160/ 公网可达（防火墙 80 已通），**13 个页面路由全部 200**；`/api/zhihu/status` `configured:true`、热榜已用 2/100（**知乎凭证真实生效，真人池是真的**）；注册评委账号→**容器重启→重登 200**（服务器持久化实测）；OAuth 未配键诚实 501
+  - [x] 评委测试账号已在服务器注册：`评审体验官 / HuZhi2026!`（官方要求提交表附测试账号）
+  - [x] OAuth 顺手修复：会话 Cookie 按协议决定 `secure`（HTTP/IP 直访不再丢登录态），`16d6fc2` 已推送；APP_ID/KEY 待用户从提交页获取后写入服务器 `~/huzhi/deploy/.env.server` 再 `docker restart`
+  - [x] docs/submission-plan.md 体验入口与 DEPLOY.md 材料现状已更新为线上地址；**剩余用户动作：仓库转公开 → 提交页填表（Demo 链接+测试账号+计划书+GitHub）→ 发想法拉人气 → 演示视频（选交）**
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（**DEPLOY.md v51 定稿：主链接走 Docker+持久卷香港容器平台，镜像构建与持久化冒烟已本地验证**；平台账号注册与部署授权需用户本人操作，约 30 分钟）
 - [ ] 道具商店（伪装道具/侦探工具/反套路）接入对局
