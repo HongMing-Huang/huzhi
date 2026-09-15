@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
 import { IconEye, IconLogout, IconRobot, IconShield, IconUser } from "@/components/Icons";
+import { copyText } from "@/lib/client-id";
 
 interface Me {
   loggedIn: boolean;
@@ -124,8 +125,8 @@ export default function SettingsPage() {
                         <p className="mt-0.5 flex items-center gap-2 text-[13px] text-[color:var(--time)]">
                           账号 ID：{me.user.id}
                           <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(me.user!.id);
+                            onClick={async () => {
+                              await copyText(me.user!.id);
                               setSaved("账号 ID 已复制");
                               setTimeout(() => setSaved(""), 1600);
                             }}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { avatarStyle } from "@/lib/feed/residents";
+import { copyText, randomId } from "@/lib/client-id";
 import { IconAgree, IconChevronDown, IconComment, IconEye, IconPlus, IconStar } from "@/components/Icons";
 import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
 import InsightDialog from "@/components/InsightDialog";
@@ -79,7 +80,7 @@ function fmtTime(ts: number): string {
 function uid(): string {
   let v = localStorage.getItem("huzhi_uid");
   if (!v) {
-    v = crypto.randomUUID();
+    v = randomId(); // crypto.randomUUID 仅安全上下文可用，IP 直访（HTTP）会 undefined
     localStorage.setItem("huzhi_uid", v);
   }
   return v;
@@ -416,10 +417,10 @@ export default function PostPage() {
               <IconChevronDown size={14} />
             </button>
             <span className="content-action whitespace-nowrap"><IconComment size={14} /><span className="tnum">{comments.length}</span> 条评论</span>
-            <button className="content-action" onClick={() => navigator.clipboard.writeText(location.href)}>
+            <button className="content-action" onClick={() => void copyText(location.href)}>
               <IconStar size={14} /> 收藏
             </button>
-            <button className="content-action" onClick={() => navigator.clipboard.writeText(location.href)}>
+            <button className="content-action" onClick={() => void copyText(location.href)}>
               分享
             </button>
             <span className="ml-auto hidden text-[13px] text-[color:var(--time)] sm:block">发布于 {fmtTime(Date.now() - 3600_000 * 3)}</span>

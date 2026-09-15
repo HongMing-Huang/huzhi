@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { RESIDENTS, avatarStyle } from "@/lib/feed/residents";
+import { copyText, randomId } from "@/lib/client-id";
 import {
   IconFeed, IconFire, IconUsers, IconMask, IconChat, IconRobot,
   IconBag, IconUser, IconSearch, IconBell, IconAgree, IconComment, IconStar, IconEye, IconInfo, IconClose, IconChevronDown,
@@ -101,7 +102,7 @@ type Tab = "feed" | "hot" | "residents";
 function uid(): string {
   let v = localStorage.getItem("huzhi_uid");
   if (!v) {
-    v = crypto.randomUUID();
+    v = randomId(); // crypto.randomUUID 仅安全上下文可用，IP 直访（HTTP）会 undefined
     localStorage.setItem("huzhi_uid", v);
   }
   return v;
@@ -1050,14 +1051,14 @@ export default function Home() {
             <span><span className="tnum">{fmtCount(post.comments)}</span> 条评论</span>
           </button>
           <button
-            onClick={() => navigator.clipboard.writeText(`${location.origin}/post/${post.id}`)}
+            onClick={() => void copyText(`${location.origin}/post/${post.id}`)}
             className="content-action hidden sm:inline-flex"
           >
             <IconStar size={14} />
             收藏
           </button>
           <button
-            onClick={() => navigator.clipboard.writeText(`${location.origin}/post/${post.id}`)}
+            onClick={() => void copyText(`${location.origin}/post/${post.id}`)}
             className="content-action"
           >
             分享

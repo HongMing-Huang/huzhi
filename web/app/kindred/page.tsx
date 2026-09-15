@@ -6,6 +6,7 @@
 // 匹配不只给一个分数，还要给出**可解释的理由**与**可直接用的破冰话题**，
 // 因为赛道要求的是"让一次讨论更容易开始、更值得继续"。
 import { useCallback, useEffect, useState } from "react";
+import { copyText } from "@/lib/client-id";
 import Link from "next/link";
 import { AppHeader, MobileDock, SidebarPage } from "@/components/AppChrome";
 import KanshanSays from "@/components/KanshanSays";
@@ -206,7 +207,7 @@ export default function KindredPage() {
                         <p className="mt-1.5">{m.icebreaker}</p>
                         <button
                           onClick={() => {
-                            navigator.clipboard.writeText(m.icebreaker);
+                            void copyText(m.icebreaker);
                             setCopied(m.profile.userKey);
                             setTimeout(() => setCopied(""), 1600);
                           }}

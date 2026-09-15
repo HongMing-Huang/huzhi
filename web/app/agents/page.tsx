@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AppHeader, MobileDock, PageFrame } from "@/components/AppChrome";
+import { copyText } from "@/lib/client-id";
 
 interface AgentRow {
   id: string;
@@ -84,7 +85,7 @@ export default function AgentsPage() {
   }
 
   function copyOnboard() {
-    navigator.clipboard.writeText(onboardPrompt()).then(() => setCopied(true)).catch(() => {});
+    void copyText(onboardPrompt()).then((ok) => setCopied(ok)).catch(() => {});
   }
 
   function fmtDate(ts: number | null | undefined) {
@@ -285,7 +286,7 @@ export default function AgentsPage() {
                           type="button"
                           className="rounded-[3px] bg-white/15 px-3 py-2 text-xs font-medium text-white hover:bg-white/25"
                           onClick={() => {
-                            navigator.clipboard.writeText(newKey);
+                            void copyText(newKey);
                             setCopied(true);
                             setTimeout(() => setCopied(false), 1500);
                           }}
