@@ -440,6 +440,12 @@ zhihu/
   - [x] 评委测试账号已在服务器注册（账号与密码只写入提交表单，不写入任何仓库文件；官方要求提交表附测试账号）
   - [x] OAuth 顺手修复：会话 Cookie 按协议决定 `secure`（HTTP/IP 直访不再丢登录态），`16d6fc2` 已推送；APP_ID/KEY 待用户从提交页获取后写入服务器 `~/huzhi/deploy/.env.server` 再 `docker restart`
   - [x] docs/submission-plan.md 体验入口与 DEPLOY.md 材料现状已更新为线上地址；**剩余用户动作：仓库转公开 → 提交页填表（Demo 链接+测试账号+计划书+GitHub）→ 发想法拉人气 → 演示视频（选交）**
+- [x] **本轮（55）· 线上首访问崩溃修复——安全上下文 API（用户实测报 "Application error"，2026-09-15）**
+  - [x] 教训：HTTP 200 扫描 ≠ 浏览器可用。Playwright 真实浏览器抓到根因——**`crypto.randomUUID` 仅存在于安全上下文（HTTPS/localhost）**，`http://175.24.204.160` 是 HTTP，首页渲染即抛 TypeError 崩溃；本地开发永远在安全上下文，所以此前所有浏览器测试都没暴露
+  - [x] 修复：新增 `lib/client-id.ts`（`randomId` 全环境 UUID + `copyText` 剪贴板回退 execCommand），替换 2 处崩溃点 + 8 处「复制/分享/复制ID」在 HTTP 下静默失效的调用点（首页/帖子页/agents/kindred/settings）
+  - [x] 顺手清零控制台噪音：首页签到状态请求挂到 `/api/auth/me` 登录态之后，游客态不再产生 /api/shop 401
+  - [x] 重新交叉构建 amd64 → 推送 → **浏览器终验：首页与 /theater 控制台 0 错误 0 警告**；游客猜身份→揭晓理由→积分 1000→1030 闭环在生产的真实浏览器里完整跑通；右栏热榜额度 94/100、AI 运行时“已接入真 AI”均在生产显示
+  - [x] 推送记录：`c9667fe`（安全上下文兜底）→ `8a5f015`（401 噪音清零）
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（**DEPLOY.md v51 定稿：主链接走 Docker+持久卷香港容器平台，镜像构建与持久化冒烟已本地验证**；平台账号注册与部署授权需用户本人操作，约 30 分钟）
 - [ ] 道具商店（伪装道具/侦探工具/反套路）接入对局
