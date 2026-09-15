@@ -50,9 +50,8 @@ export function resolveSessionUser(token: string | undefined): User | null {
   return getUserById(s.userId) ?? null;
 }
 
-export const sessionCookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-};
+/** 会话 Cookie 属性：secure 按请求协议动态决定——恒为 true 会让 HTTP 的
+ *  IP 直访部署下浏览器拒绝回传 Cookie，登录根本存不住（线上实测踩坑）。 */
+export function sessionCookieOptions(secure: boolean) {
+  return { httpOnly: true, sameSite: "lax" as const, secure, path: "/" };
+}

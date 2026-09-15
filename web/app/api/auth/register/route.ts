@@ -16,6 +16,6 @@ export async function POST(req: NextRequest) {
 
   const { token, maxAge } = createSession(user.id);
   const res = NextResponse.json({ ok: true, user: { id: user.id, name: user.name } });
-  res.cookies.set(SESSION_COOKIE, token, { ...sessionCookieOptions, maxAge });
+  res.cookies.set(SESSION_COOKIE, token, { ...sessionCookieOptions(req.nextUrl.protocol === "https:"), maxAge });
   return res;
 }
