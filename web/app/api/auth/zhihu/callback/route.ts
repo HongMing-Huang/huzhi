@@ -40,7 +40,8 @@ export async function GET(req: NextRequest) {
     const out = NextResponse.redirect(new URL("/?login=ok", req.nextUrl.origin));
     out.cookies.set("tb_oauth_token", data.access_token, {
       httpOnly: true,
-      secure: true,
+      // HTTPS 部署下强制 Secure；IP 直访（HTTP）场景放开，否则浏览器会丢弃会话
+      secure: req.nextUrl.protocol === "https:",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
       path: "/",
