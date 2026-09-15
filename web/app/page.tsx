@@ -216,12 +216,14 @@ export default function Home() {
       .then((d: Me) => {
         setMe(d);
         if (d.user) setBank(d.user.bank);
+        // 签到状态仅登录用户需要：游客态请求 /api/shop 会 401，产生控制台噪音
+        if (d.loggedIn) {
+          fetch("/api/shop").then((r) => r.json()).then((s) => {
+            if (s?.checkin) setCheckinDone(s.checkin.doneToday);
+          }).catch(() => {});
+        }
       })
       .catch(() => {});
-    // 读取签到状态（仅登录用户）
-    fetch("/api/shop").then((r) => r.json()).then((d) => {
-      if (d?.checkin) setCheckinDone(d.checkin.doneToday);
-    }).catch(() => {});
     fetch("/api/leaderboard").then((r) => r.json()).then((d) => setLeaders(d.players ?? [])).catch(() => {});
     fetch("/api/zhihu/status").then((r) => r.json()).then((d: ZhihuStatus) => setZhihuStatus(d)).catch(() => {});
     fetch("/api/ai/status").then((r) => r.json()).then((d) => setAiStatus(d)).catch(() => {});
