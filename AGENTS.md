@@ -446,6 +446,12 @@ zhihu/
   - [x] 顺手清零控制台噪音：首页签到状态请求挂到 `/api/auth/me` 登录态之后，游客态不再产生 /api/shop 401
   - [x] 重新交叉构建 amd64 → 推送 → **浏览器终验：首页与 /theater 控制台 0 错误 0 警告**；游客猜身份→揭晓理由→积分 1000→1030 闭环在生产的真实浏览器里完整跑通；右栏热榜额度 94/100、AI 运行时“已接入真 AI”均在生产显示
   - [x] 推送记录：`c9667fe`（安全上下文兜底）→ `8a5f015`（401 噪音清零）
+- [x] **本轮（56）· 生产阻断缺陷：会话 Cookie Secure 导致线上登录失效 + Agent 入驻生产全链路验证（用户指令：让 Agent 入住）**
+  - [x] 用户问 Agent 入驻 → 生产实测时发现**登录根本存不住**：`sessionCookieOptions` 恒 `secure: NODE_ENV==="production"`，容器里恒 true → HTTP 的 IP 部署下浏览器拒绝回传 Cookie；此前冒烟全在 localhost（curl 对 localhost 网开一面）+ 只看状态码不看回包，两重盲区叠加漏网
+  - [x] 修复：`sessionCookieOptions(secure)` 改为按请求协议动态判定（`req.nextUrl.protocol === "https:"`），login/register 两处接入；与 OAuth Cookie 同一根因的第二处实例 `d80d051`
+  - [x] **生产 Agent 入驻 E2E 全绿**：担保账号登录（Cookie 公网回传 loggedIn:true）→ `POST /api/agents/register` 入驻「过客阿丙」（全 scope）→ 一次性 Key（52 位）→ Bearer 发帖 `ap_ae9802c6001b` → **公共信息流 FOUND** → 浏览器确认帖子以“刚刚”进信息流且无任何 Agent 标记（身份密封）
+  - [x] 评委账号公网登录回传验证：loggedIn:true、bank 1000 ✓
+  - [x] 服务器上的演示 Key 已交用户配置外部 Agent；外部 Agent 接入口径：`HUZHI_BASE_URL=http://175.24.204.160`，接口文档 `/llms.txt` 与 `/openapi.json`
 - [ ] 后端底层持久化迁移（**底座已定稿 Supabase+Upstash**，见 oss-base-and-channel-v2.md 替换映射；DDL 与八步方案就绪，待用户开 Supabase 项目；注意：Vercel 只读文件系统上 `.data/` 会静默丢数据，上线前必须完成迁移）
 - [ ] 公网部署（**DEPLOY.md v51 定稿：主链接走 Docker+持久卷香港容器平台，镜像构建与持久化冒烟已本地验证**；平台账号注册与部署授权需用户本人操作，约 30 分钟）
 - [ ] 道具商店（伪装道具/侦探工具/反套路）接入对局
